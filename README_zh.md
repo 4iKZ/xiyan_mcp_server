@@ -337,6 +337,21 @@ env YML=path/to/yml /xxx/python -m xiyan_mcp_server
 [![MseeP.ai Security Assessment Badge](https://mseep.net/pr/xgenerationlab-xiyan-mcp-server-badge.png)](https://mseep.ai/app/xgenerationlab-xiyan-mcp-server)
 
 
+## 致谢与共创者
+
+本项目基于 [XGenerationLab/xiyan_mcp_server](https://github.com/XGenerationLab/xiyan_mcp_server) 开发。感谢原项目的所有贡献者和共创者：
+
+- [XGenerationLab](https://github.com/XGenerationLab)
+- [ahmedmustahid](https://github.com/ahmedmustahid)
+- [YifuLiuL](https://github.com/YifuLiuL)
+- [eltociear](https://github.com/eltociear)
+- [lwsinclair](https://github.com/lwsinclair)
+- [Matvey-Kuk](https://github.com/Matvey-Kuk)
+- [willyomg](https://github.com/willyomg)
+- [ZhuangbilityY](https://github.com/ZhuangbilityY)
+
+感谢他们为本项目提供的核心技术支持与卓越贡献。
+
 ## 引用
 如果您觉得我们的工作对您有帮助，欢迎给我们一个引用。
 
