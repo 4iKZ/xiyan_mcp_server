@@ -46,20 +46,27 @@ class SchemaRetriever:
         self.score_threshold = config.get("score_threshold", 0.6)
     
     def _get_matched_database_tags(self, prefix: str) -> List[str]:
-        """从 Redis 获取所有匹配前缀的 database 标签"""
+        """
+        从 Redis 获取所有匹配前缀的 database 标签
+
+        注意：Redis TAG 字段存储的是小写值（如 cockroachdb_metrics），
+        而配置中的 system_prefix 可能是首字母大写（如 CockroachDB）。
+        这里使用不区分大小写的前缀匹配。
+        """
         try:
             # 使用 FT.TAGVALS 获取所有 database 字段的值
             all_tags = self.redis.execute_command("FT.TAGVALS", self.index_name, "database")
             if not all_tags:
                 return []
-            
-            # 过滤匹配前缀的标签（不区分大小写前缀匹配，或精确前缀匹配）
+
+            # 使用不区分大小写的前缀匹配
+            prefix_lower = prefix.lower()
             matched = [
-                tag.decode() if isinstance(tag, bytes) else tag 
-                for tag in all_tags 
-                if (tag.decode() if isinstance(tag, bytes) else tag).startswith(prefix)
+                tag.decode() if isinstance(tag, bytes) else tag
+                for tag in all_tags
+                if (tag.decode() if isinstance(tag, bytes) else tag).lower().startswith(prefix_lower)
             ]
-            logger.info(f"系统前缀 '{prefix}' 匹配到标签: {matched}")
+            logger.info(f"系统前缀 '{prefix}' (小写: {prefix_lower}) 匹配到标签: {matched}")
             return matched
         except Exception as e:
             logger.warning(f"获取标签失败: {e}")
@@ -171,15 +178,16 @@ class SchemaRetriever:
         """
         results = self.retrieve(query, database, system_prefix, top_k)
         # 使用 database.table_name 格式，与 GreptimeDBSource 中的 mschema 保持一致
-        return [f"{item['database']}.{item['table_name']}" for item in results]
+        # 注意：将 database 字段转换为小写，因为数据库中的 schema 名是小写的
+        return [f"{item['database'].lower()}.{item['table_name']}" for item in results]
 
     def build_sub_schema(self, table_names: List[str]) -> str:
         """
         根据表名列表从完整 M-Schema 中提取 Sub-Schema
-        
+
         Args:
             table_names: 需要包含的表名列表
-            
+
         Returns:
             Sub-Schema 字符串（M-Schema 格式）
         """
@@ -187,36 +195,45 @@ class SchemaRetriever:
             # 如果没有检索到任何表，返回完整 Schema
             logger.warning("未检索到相关表，使用完整 Schema")
             return self.mschema.to_mschema()
-        
+
         # 创建子 MSchema
         from .db_mschema import MSchema
-        
+
         sub_mschema = MSchema(
             db_id=self.mschema.db_id,
             schema=self.mschema.schema
         )
-        
-        # 只复制检索到的表
+
+        # 创建大小写不敏感的映射表
+        mschema_tables_lower = {k.lower(): k for k in self.mschema.tables.keys()}
+
+        # 只复制检索到的表（使用大小写不敏感匹配）
+        matched_count = 0
         for table_name in table_names:
-            if table_name in self.mschema.tables:
-                table_info = self.mschema.tables[table_name]
-                
-                # 添加表
+            # 使用小写进行匹配
+            table_name_lower = table_name.lower()
+            if table_name_lower in mschema_tables_lower:
+                # 获取原始大小写的表名
+                actual_table_name = mschema_tables_lower[table_name_lower]
+                table_info = self.mschema.tables[actual_table_name]
+                matched_count += 1
+
+                # 添加表（使用原始大小写的表名）
                 sub_mschema.add_table(
-                    table_name,
+                    actual_table_name,
                     fields=table_info.get('fields', {}),
                     comment=table_info.get('comment', '')
                 )
-                
+
                 # 复制字段信息
                 if 'fields' in table_info:
                     for field_name, field_info in table_info['fields'].items():
-                        sub_mschema.tables[table_name]['fields'][field_name] = field_info
-        
+                        sub_mschema.tables[actual_table_name]['fields'][field_name] = field_info
+
         sub_schema_str = sub_mschema.to_mschema()
-        
+
         logger.info(
-            f"构建 Sub-Schema：{len(table_names)} 个表，"
+            f"构建 Sub-Schema：{matched_count}/{len(table_names)} 个表匹配成功，"
             f"{len(sub_schema_str)} 字符"
         )
         

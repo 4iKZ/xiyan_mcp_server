@@ -244,7 +244,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str):
 【问题】
 {query}
 """
-    # logger.info(f"SQL generation prompt: {prompt}")
+    logger.debug(f"SQL generation prompt: {prompt}")
 
     messages = [
         {"role": "system", "content": prompt},
@@ -261,19 +261,27 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str):
     try:
         response = call_openai_sdk(**param)
         content = response.choices[0].message.content
+        logger.debug(f"LLM Raw Response: {content}")
         sql_query = extract_sql_from_qwen(content)
+        logger.info(f"Extracted SQL: {sql_query}")
+        
         status, res = db_env.database.fetch(sql_query)
         if not status:
+            logger.warning(f"Initial SQL execution failed: {res}. Starting fix loop...")
             for idx in range(3):
                 sql_query = sql_fix(
                     db_env.dialect, db_env.mschema_str, query, sql_query, res
                 )
+                logger.info(f"Fixed SQL (Attempt {idx+1}): {sql_query}")
                 status, res = db_env.database.fetch(sql_query)
                 if status:
+                    logger.info("SQL fix successful.")
                     break
+            if not status:
+                logger.error(f"SQL fix failed after 3 attempts. Last error: {res}")
 
         sql_res = db_env.database.fetch_truncated(sql_query, max_rows=100)
-        logger.info(f"SQL query: {sql_query}\nSQL result: {sql_res}")
+        logger.info(f"SQL result count: {len(sql_res.get('truncated_results', []))}")
         # 返回原始字典，让调用方根据 format 参数格式化
         return sql_res
 
@@ -410,6 +418,7 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
                 system_prefix=global_system_prefix
             )
             logger.info(f"Schema 过滤：检索到 {len(table_names)} 个表: {table_names}")
+            logger.debug(f"生成的 Sub-Schema 长度: {len(sub_schema)} 字符")
             
             # 创建使用 Sub-Schema 的环境
             env = DataBaseEnv(db_source)

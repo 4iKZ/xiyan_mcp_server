@@ -1,8 +1,11 @@
 from typing import Any, Dict, List, Optional, Tuple
 import os
+import logging
 import sqlparse
 from sqlparse.sql import Statement, IdentifierList, Identifier
 from sqlparse.tokens import Keyword, DML
+
+logger = logging.getLogger("xiyan_mcp_server.db_source")
 
 from llama_index.core import SQLDatabase
 from sqlalchemy import MetaData, Table, select, text
@@ -42,6 +45,7 @@ def validate_sql_query(sql_query: str, allow_multiple: bool = False) -> None:
         raise ValueError("无法解析 SQL 查询")
 
     if not allow_multiple and len(parsed) > 1:
+        logger.warning(f"SQL validation failed: Multiple statements detected. Query: {sql_query}")
         raise ValueError("只允许单个 SQL 语句")
 
     for statement in parsed:
@@ -53,6 +57,7 @@ def validate_sql_query(sql_query: str, allow_multiple: bool = False) -> None:
             # UNKNOWN 类型可能是 SELECT，需要进一步检查
             sql_upper = sql_query.upper()
             if not sql_upper.strip().startswith('SELECT'):
+                logger.warning(f"SQL validation failed: Non-SELECT statement ({stmt_type}). Query: {sql_query}")
                 raise ValueError(f"不允许的 SQL 类型: {stmt_type}，只允许 SELECT 查询")
 
         # 对于 UNKNOWN 类型，也需要检查是否包含实际的 SQL 关键词
@@ -148,15 +153,17 @@ class HITLSQLDatabase(SQLDatabase):
 
         # 添加 SQL 验证
         validate_sql_query(sql_query)
+        logger.debug(f"Executing SQL fetch: {sql_query}")
 
         with self._engine.begin() as connection:
             try:
                 cursor = connection.execute(text(sql_query))
                 records = cursor.fetchall()
                 records = [tuple(row) for row in records]
+                logger.info(f"SQL fetch successful, rows: {len(records)}")
                 return True, records
             except Exception as e:
-                # print("An exception occurred during SQL execution.\n", e)
+                logger.error(f"SQL fetch error: {e}")
                 records = str(e)
             return False, records
 
@@ -165,14 +172,16 @@ class HITLSQLDatabase(SQLDatabase):
 
         # 添加 SQL 验证
         validate_sql_query(sql_query)
+        logger.debug(f"Executing SQL fetch_with_column_name: {sql_query}")
 
         with self._engine.begin() as connection:
             try:
                 cursor = connection.execute(text(sql_query))
                 columns = cursor.keys()
                 records = cursor.fetchall()
+                logger.info(f"SQL fetch_with_column_name successful, rows: {len(records)}")
             except Exception as e:
-                # print("An exception occurred during SQL execution.\n", e)
+                logger.error(f"SQL fetch_with_column_name error: {e}")
                 records = None
                 columns = []
             return records, columns
@@ -194,6 +203,7 @@ class HITLSQLDatabase(SQLDatabase):
 
         # 添加 SQL 验证
         validate_sql_query(sql_query)
+        logger.debug(f"Executing SQL fetch_truncated: {sql_query}")
 
         with self._engine.begin() as connection:
             try:
@@ -208,9 +218,10 @@ class HITLSQLDatabase(SQLDatabase):
                         for column in row
                     )
                     truncated_results.append(truncated_row)
+                logger.info(f"SQL fetch_truncated successful, rows: {len(truncated_results)}")
                 return {"truncated_results": truncated_results, "fields": list(cursor.keys())}
             except Exception as e:
-                # print("An exception occurred during SQL execution.\n", e)
+                logger.error(f"SQL fetch_truncated error: {e}")
                 # records = None
                 records = str(e)
                 return {"truncated_results": records, "fields": []}

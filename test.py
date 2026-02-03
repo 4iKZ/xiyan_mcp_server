@@ -104,7 +104,7 @@ def test_query(query: str, format_type: str = "markdown"):
         print(f"异常: {e}")
 
 if __name__ == "__main__":
-    query = "查询最近的5条WARN和ERROR日志"
+    query = "查询最近五分钟CPU平均使用率"
     
     # 测试三种格式
     print("\n" + "="*60)
