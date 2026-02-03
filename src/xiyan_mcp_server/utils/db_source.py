@@ -1,4 +1,8 @@
 from typing import Any, Dict, List, Optional, Tuple
+import os
+import sqlparse
+from sqlparse.sql import Statement, IdentifierList, Identifier
+from sqlparse.tokens import Keyword, DML
 
 from llama_index.core import SQLDatabase
 from sqlalchemy import MetaData, Table, select, text
@@ -6,6 +10,57 @@ from sqlalchemy.engine import Engine
 
 from .db_mschema import MSchema
 from .db_util import examples_to_str, preprocess_sql_query
+
+
+def validate_sql_query(sql_query: str, allow_multiple: bool = False) -> None:
+    """
+    验证 SQL 查询的安全性。
+
+    Args:
+        sql_query: 要验证的 SQL 查询
+        allow_multiple: 是否允许多个语句（默认 False）
+
+    Raises:
+        ValueError: 如果 SQL 不安全
+    """
+    # 检查是否跳过验证（仅用于测试/调试）
+    if os.getenv("SKIP_SQL_VALIDATION", "").lower() in ("1", "true", "yes"):
+        return
+
+    if not sql_query or not sql_query.strip():
+        raise ValueError("SQL 查询为空")
+
+    # 解析 SQL
+    parsed = sqlparse.parse(sql_query)
+
+    if not parsed:
+        raise ValueError("无法解析 SQL 查询")
+
+    if not allow_multiple and len(parsed) > 1:
+        raise ValueError("只允许单个 SQL 语句")
+
+    for statement in parsed:
+        # 获取语句类型
+        stmt_type = statement.get_type()
+
+        # 只允许 SELECT 查询
+        if stmt_type != 'SELECT' and stmt_type != 'UNKNOWN':
+            # UNKNOWN 类型可能是 SELECT，需要进一步检查
+            sql_upper = sql_query.upper()
+            if not sql_upper.strip().startswith('SELECT'):
+                raise ValueError(f"不允许的 SQL 类型: {stmt_type}，只允许 SELECT 查询")
+
+        # 检查危险关键词（双重检查）
+        sql_upper = sql_query.upper()
+        dangerous_keywords = [
+            'DROP', 'DELETE', 'UPDATE', 'INSERT', 'TRUNCATE',
+            'ALTER', 'CREATE', 'GRANT', 'REVOKE', 'EXECUTE',
+            'CALL', 'DECLARE', 'CURSOR', 'MERGE', 'REPLACE'
+        ]
+        for keyword in dangerous_keywords:
+            # 检查关键词是否作为独立 token 出现
+            if f' {keyword} ' in f' {sql_upper} ':
+                raise ValueError(f"不允许使用关键词: {keyword}")
 
 
 class HITLSQLDatabase(SQLDatabase):
@@ -73,6 +128,9 @@ class HITLSQLDatabase(SQLDatabase):
     def fetch(self, sql_query: str):
         sql_query = preprocess_sql_query(sql_query)
 
+        # 添加 SQL 验证
+        validate_sql_query(sql_query)
+
         with self._engine.begin() as connection:
             try:
                 cursor = connection.execute(text(sql_query))
@@ -86,6 +144,9 @@ class HITLSQLDatabase(SQLDatabase):
 
     def fetch_with_column_name(self, sql_query: str):
         sql_query = preprocess_sql_query(sql_query)
+
+        # 添加 SQL 验证
+        validate_sql_query(sql_query)
 
         with self._engine.begin() as connection:
             try:
@@ -112,6 +173,10 @@ class HITLSQLDatabase(SQLDatabase):
 
     def fetch_truncated(self, sql_query: str, max_rows: Optional[int] = None, max_str_len: int = 30) -> Dict:
         sql_query = preprocess_sql_query(sql_query)
+
+        # 添加 SQL 验证
+        validate_sql_query(sql_query)
+
         with self._engine.begin() as connection:
             try:
                 cursor = connection.execute(text(sql_query))

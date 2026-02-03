@@ -31,3 +31,6 @@ numpy>=1.26.0
 pandas>=2.0.0
 PyYAML>=6.0.3
 loguru>=0.7.0
+
+# SQL 验证（安全增强）
+sqlparse>=0.4.4

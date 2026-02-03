@@ -17,6 +17,7 @@ dependencies = [
     "modelscope",
     "addict",
     "datasets",
+    "sqlparse>=0.4.4",
 ]
 [[project.authors]]
 name = "Zhiling Luo"

@@ -32,13 +32,36 @@ logging.basicConfig(
 logger = logging.getLogger("xiyan_mcp_server")
 
 
-# Handle SIGINT (Ctrl+C) gracefully
+# Handle SIGINT (Ctrl+C) and SIGTERM gracefully
 def signal_handler(sig, frame):
-    print("Shutting down server gracefully...")
+    """处理退出信号，确保资源被正确释放"""
+    logger.info("正在关闭服务器...")
+
+    # 清理数据库引擎
+    global _db_engine
+    if _db_engine is not None:
+        try:
+            _db_engine.dispose()
+            logger.info("数据库连接池已释放")
+        except Exception as e:
+            logger.error(f"释放数据库连接时出错: {e}")
+
+    # 清理 Redis 连接（如果启用）
+    if schema_filter_enabled:
+        try:
+            global _redis_client
+            if '_redis_client' in globals() and _redis_client is not None:
+                _redis_client.close()
+                logger.info("Redis 连接已关闭")
+        except Exception as e:
+            logger.error(f"关闭 Redis 连接时出错: {e}")
+
+    logger.info("服务器已安全关闭")
     sys.exit(0)
 
 
 signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 
 def get_yml_config():
@@ -176,7 +199,7 @@ async def read_resource(table_name) -> str:
         db_engine = get_db_engine()
         db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""))
 
-        # 验证表名是否存在（防止SQL注入）
+        # 验证表名是否存在（防止SQL注入）- 白名单验证
         if table_name not in db_source.mschema.tables:
             available_tables = ", ".join(list(db_source.mschema.tables.keys())[:10])
             if len(db_source.mschema.tables) > 10:
@@ -185,14 +208,14 @@ async def read_resource(table_name) -> str:
                 f"表 '{table_name}' 不存在。可用的表: {available_tables}"
             )
 
-        # 验证表名格式（只允许字母、数字、下划线）
-        import re
-        if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
-            raise ValueError(f"表名格式无效: '{table_name}'")
+        # 白名单验证后，使用参数化查询构建
+        # 注意：由于 SQLAlchemy 的 text() 不支持表名参数化，我们依赖白名单验证
+        # 白名单验证已经确保表名是安全的
+        from sqlalchemy import Table, select
+        table = Table(table_name, db_source.metadata_obj, autoload_with=db_engine)
+        query = select(table)
 
-        records, columns = db_source.fetch_with_column_name(
-            f"SELECT * FROM {table_name}"
-        )
+        records, columns = db_source.fetch_with_column_name(str(query))
         result = [",".join(map(str, row)) for row in records]
         return "\n".join([",".join(columns)] + result)
     except ValueError:

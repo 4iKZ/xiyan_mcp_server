@@ -4,12 +4,16 @@ GreptimeDB 专用数据源类
 由于 llama_index.SQLDatabase 在初始化时会使用 SQLAlchemy 自动加载表结构，
 这与 GreptimeDB 的 pg_catalog 不兼容，因此需要自定义实现。
 """
+import logging
 from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from .db_mschema import MSchema
 from .db_util import examples_to_str, preprocess_sql_query
+from .db_source import validate_sql_query
+
+logger = logging.getLogger(__name__)
 
 
 class GreptimeDBSource:
@@ -148,9 +152,14 @@ class GreptimeDBSource:
         import re
         identifier_pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
         if not re.match(identifier_pattern, table_name):
+            logger.warning(f"表名格式验证失败: '{table_name}'")
             raise ValueError(f"表名格式无效: '{table_name}'")
         if not re.match(identifier_pattern, column_name):
+            logger.warning(f"列名格式验证失败: '{column_name}'")
             raise ValueError(f"列名格式无效: '{column_name}'")
+
+        # 记录审计日志
+        logger.debug(f"获取列的不同值: table={table_name}, column={column_name}, max_num={max_num}")
 
         query = text(f"""
             SELECT DISTINCT "{column_name}"
@@ -165,6 +174,10 @@ class GreptimeDBSource:
     def fetch(self, sql_query: str) -> Tuple[bool, Any]:
         """执行 SQL 查询"""
         sql_query = preprocess_sql_query(sql_query)
+
+        # 添加 SQL 验证
+        validate_sql_query(sql_query)
+
         with self._engine.begin() as conn:
             try:
                 cursor = conn.execute(text(sql_query))
@@ -177,6 +190,10 @@ class GreptimeDBSource:
     def fetch_with_column_name(self, sql_query: str) -> Tuple[Any, List]:
         """执行查询并返回列名"""
         sql_query = preprocess_sql_query(sql_query)
+
+        # 添加 SQL 验证
+        validate_sql_query(sql_query)
+
         with self._engine.begin() as conn:
             try:
                 cursor = conn.execute(text(sql_query))
@@ -189,6 +206,10 @@ class GreptimeDBSource:
     def fetch_truncated(self, sql_query: str, max_rows: Optional[int] = None, max_str_len: int = 30) -> Dict:
         """执行查询并截断结果"""
         sql_query = preprocess_sql_query(sql_query)
+
+        # 添加 SQL 验证
+        validate_sql_query(sql_query)
+
         with self._engine.begin() as conn:
             try:
                 cursor = conn.execute(text(sql_query))
