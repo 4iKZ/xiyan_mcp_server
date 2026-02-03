@@ -1,0 +1,7 @@
+/.trae/documents
+/.claude
+CLAUDE.md
+__pycache__/
+*.pyc
+.env
+xiyan_mcp.log

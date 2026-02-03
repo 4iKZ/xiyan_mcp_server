@@ -1,0 +1,33 @@
+# XiYan MCP Server 依赖
+# 基于本机实际版本 (Python 3.13)
+
+# MCP Server 核心
+mcp>=1.16.0
+uvicorn>=0.34.2
+pydantic>=2.12.5
+
+# LLM 相关
+openai>=2.15.0
+httpx>=0.28.1
+
+# 数据库连接
+sqlalchemy>=1.4.54
+psycopg2-binary>=2.9.10
+mysql-connector-python>=9.1.0
+pymysql>=1.1.0
+
+# GreptimeDB 支持
+greptimedb-sqlalchemy>=0.1.7
+
+# LlamaIndex (用于 SQLDatabase)
+llama-index-core>=0.12.0
+
+# Embedding & Schema 过滤
+sentence-transformers>=5.2.0
+redis>=7.1.0
+numpy>=1.26.0
+
+# 工具库
+pandas>=2.0.0
+PyYAML>=6.0.3
+loguru>=0.7.0

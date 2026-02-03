@@ -1,0 +1,353 @@
+[
+  {
+    "table_name": "sys_cpu_usage",
+    "friendly_name": "CPU使用率",
+    "description": "记录服务器CPU的整体使用率，反映计算资源负载。",
+    "business_meaning": "用于监控服务器是否过载，CPU是否成为瓶颈。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "CPU使用率是多少",
+      "查看CPU负载",
+      "最近5分钟CPU平均值"
+    ],
+    "embedding_content": "表名: sys_cpu_usage。名称: CPU使用率。描述: 记录服务器CPU的整体使用率，反映计算资源负载。业务含义: 用于监控服务器是否过载，CPU是否成为瓶颈。。"
+  },
+  {
+    "table_name": "sys_memory_usage",
+    "friendly_name": "内存使用率",
+    "description": "记录服务器物理内存的使用百分比。",
+    "business_meaning": "用于监控服务器内存是否不足，是否存在内存泄漏风险。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "内存使用率高吗",
+      "剩余内存情况",
+      "查看内存占用"
+    ],
+    "embedding_content": "表名: sys_memory_usage。名称: 内存使用率。描述: 记录服务器物理内存的使用百分比。业务含义: 用于监控服务器内存是否不足，是否存在内存泄漏风险。。"
+  },
+  {
+    "table_name": "sys_disk_usage",
+    "friendly_name": "磁盘使用率",
+    "description": "记录服务器磁盘分区的空间使用百分比。",
+    "business_meaning": "监控磁盘空间是否将满，预防因磁盘满导致服务不可用。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "磁盘空间够吗",
+      "磁盘使用率",
+      "查看磁盘剩余空间"
+    ],
+    "embedding_content": "表名: sys_disk_usage。名称: 磁盘使用率。描述: 记录服务器磁盘分区的空间使用百分比。业务含义: 监控磁盘空间是否将满，预防因磁盘满导致服务不可用。。"
+  },
+  {
+    "table_name": "sys_disk_io_rate",
+    "friendly_name": "磁盘IO使用率",
+    "description": "记录磁盘设备的I/O利用率（繁忙程度）。",
+    "business_meaning": "监控磁盘读写压力，识别I/O瓶颈。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "磁盘IO压力大吗",
+      "IO使用率是多少",
+      "查看磁盘繁忙程度"
+    ],
+    "embedding_content": "表名: sys_disk_io_rate。名称: 磁盘IO使用率。描述: 记录磁盘设备的I/O利用率（繁忙程度）。业务含义: 监控磁盘读写压力，识别I/O瓶颈。。"
+  },
+  {
+    "table_name": "sys_disk_io_read_kb",
+    "friendly_name": "磁盘IO读速率",
+    "description": "记录磁盘设备每秒读取的数据量(KB/s)。",
+    "business_meaning": "衡量磁盘读取负载。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "磁盘读取速度",
+      "每秒读多少数据",
+      "IO读取流量"
+    ],
+    "embedding_content": "表名: sys_disk_io_read_kb。名称: 磁盘IO读速率。描述: 记录磁盘设备每秒读取的数据量(KB/s)。业务含义: 衡量磁盘读取负载。。"
+  },
+  {
+    "table_name": "sys_disk_io_write_kb",
+    "friendly_name": "磁盘IO写速率",
+    "description": "记录磁盘设备每秒写入的数据量(KB/s)。",
+    "business_meaning": "衡量磁盘写入负载。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "磁盘写入速度",
+      "每秒写多少数据",
+      "IO写入流量"
+    ],
+    "embedding_content": "表名: sys_disk_io_write_kb。名称: 磁盘IO写速率。描述: 记录磁盘设备每秒写入的数据量(KB/s)。业务含义: 衡量磁盘写入负载。。"
+  },
+  {
+    "table_name": "sys_net_io_in",
+    "friendly_name": "网络流入流量",
+    "description": "记录服务器网络接口每秒接收的数据量(KB/s)。",
+    "business_meaning": "监控网络入向带宽占用。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "网络下载速度",
+      "流入流量是多少",
+      "查看入网带宽"
+    ],
+    "embedding_content": "表名: sys_net_io_in。名称: 网络流入流量。描述: 记录服务器网络接口每秒接收的数据量(KB/s)。业务含义: 监控网络入向带宽占用。。"
+  },
+  {
+    "table_name": "sys_net_io_out",
+    "friendly_name": "网络流出流量",
+    "description": "记录服务器网络接口每秒发送的数据量(KB/s)。",
+    "business_meaning": "监控网络出向带宽占用。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "网络上传速度",
+      "流出流量是多少",
+      "查看出网带宽"
+    ],
+    "embedding_content": "表名: sys_net_io_out。名称: 网络流出流量。描述: 记录服务器网络接口每秒发送的数据量(KB/s)。业务含义: 监控网络出向带宽占用。。"
+  },
+  {
+    "table_name": "db_buffer_hit_ratio",
+    "friendly_name": "BufferCache命中率",
+    "description": "数据库缓冲池(Buffer Cache)的命中率百分比。",
+    "business_meaning": "衡量数据库内存缓存效率，命中率过低意味着大量物理IO，影响性能。",
+    "category": "db_buffer",
+    "sample_questions": [
+      "缓存命中率如何",
+      "BufferCache命中率",
+      "数据库缓存效率"
+    ],
+    "embedding_content": "表名: db_buffer_hit_ratio。名称: BufferCache命中率。描述: 数据库缓冲池(Buffer Cache)的命中率百分比。业务含义: 衡量数据库内存缓存效率，命中率过低意味着大量物理IO，影响性能。。"
+  },
+  {
+    "table_name": "db_buffer_pool_size",
+    "friendly_name": "Buffer Pool大小",
+    "description": "数据库缓冲池的总大小（页数或容量）。",
+    "business_meaning": "监控数据库分配的缓存内存大小。",
+    "category": "db_buffer",
+    "sample_questions": [
+      "缓冲池多大",
+      "Buffer Pool Size",
+      "查看缓存池大小"
+    ],
+    "embedding_content": "表名: db_buffer_pool_size。名称: Buffer Pool大小。描述: 数据库缓冲池的总大小（页数或容量）。业务含义: 监控数据库分配的缓存内存大小。。"
+  },
+  {
+    "table_name": "db_buffer_hot_region",
+    "friendly_name": "Buffer热区比例",
+    "description": "LRU链表中热点区域(Hot Region)的占比。",
+    "business_meaning": "反映热点数据在缓存中的分布情况。",
+    "category": "db_buffer",
+    "sample_questions": [
+      "热区比例是多少",
+      "Buffer热区情况"
+    ],
+    "embedding_content": "表名: db_buffer_hot_region。名称: Buffer热区比例。描述: LRU链表中热点区域(Hot Region)的占比。业务含义: 反映热点数据在缓存中的分布情况。。"
+  },
+  {
+    "table_name": "db_buffer_writes_total",
+    "friendly_name": "Buffer物理写总数",
+    "description": "数据库执行物理写操作的总次数。",
+    "business_meaning": "反映数据库的写负载压力。",
+    "category": "db_buffer",
+    "sample_questions": [
+      "物理写次数",
+      "Buffer Writes Total",
+      "写操作统计"
+    ],
+    "embedding_content": "表名: db_buffer_writes_total。名称: Buffer物理写总数。描述: 数据库执行物理写操作的总次数。业务含义: 反映数据库的写负载压力。。"
+  },
+  {
+    "table_name": "db_psa_total_mega",
+    "friendly_name": "PSA总大小(MB)",
+    "description": "Private Shared Area (PSA) 的总配置大小，单位MB。",
+    "business_meaning": "监控私有共享内存区的容量上限。",
+    "category": "db_memory",
+    "sample_questions": [
+      "PSA总共多大",
+      "PSA Total MB"
+    ],
+    "embedding_content": "表名: db_psa_total_mega。名称: PSA总大小(MB)。描述: Private Shared Area (PSA) 的总配置大小，单位MB。业务含义: 监控私有共享内存区的容量上限。。"
+  },
+  {
+    "table_name": "db_psa_alloc_mega",
+    "friendly_name": "PSA已分配大小(MB)",
+    "description": "Private Shared Area (PSA) 当前已分配使用的大小，单位MB。",
+    "business_meaning": "监控PSA的实际使用量。",
+    "category": "db_memory",
+    "sample_questions": [
+      "PSA用了多少",
+      "PSA Alloc MB"
+    ],
+    "embedding_content": "表名: db_psa_alloc_mega。名称: PSA已分配大小(MB)。描述: Private Shared Area (PSA) 当前已分配使用的大小，单位MB。业务含义: 监控PSA的实际使用量。。"
+  },
+  {
+    "table_name": "db_psa_alloc_percent",
+    "friendly_name": "PSA使用率",
+    "description": "Private Shared Area (PSA) 的使用百分比。",
+    "business_meaning": "监控PSA内存是否即将耗尽。",
+    "category": "db_memory",
+    "sample_questions": [
+      "PSA使用率",
+      "PSA满了没"
+    ],
+    "embedding_content": "表名: db_psa_alloc_percent。名称: PSA使用率。描述: Private Shared Area (PSA) 的使用百分比。业务含义: 监控PSA内存是否即将耗尽。。"
+  },
+  {
+    "table_name": "db_ssa_value",
+    "friendly_name": "SSA指标值",
+    "description": "Session Shared Area (SSA) 相关的统计值。",
+    "business_meaning": "监控会话共享内存区的使用情况。",
+    "category": "db_memory",
+    "sample_questions": [
+      "SSA数值",
+      "SSA使用情况"
+    ],
+    "embedding_content": "表名: db_ssa_value。名称: SSA指标值。描述: Session Shared Area (SSA) 相关的统计值。业务含义: 监控会话共享内存区的使用情况。。"
+  },
+  {
+    "table_name": "db_tablespace_total_mb",
+    "friendly_name": "表空间总大小(MB)",
+    "description": "数据库表空间的总容量。",
+    "business_meaning": "存储容量规划依据。",
+    "category": "db_storage",
+    "sample_questions": [
+      "表空间总大小",
+      "数据库总容量"
+    ],
+    "embedding_content": "表名: db_tablespace_total_mb。名称: 表空间总大小(MB)。描述: 数据库表空间的总容量。业务含义: 存储容量规划依据。。"
+  },
+  {
+    "table_name": "db_tablespace_used_mb",
+    "friendly_name": "表空间已用大小(MB)",
+    "description": "数据库表空间已经使用的容量。",
+    "business_meaning": "监控实际存储用量。",
+    "category": "db_storage",
+    "sample_questions": [
+      "表空间用了多少",
+      "数据库已用容量"
+    ],
+    "embedding_content": "表名: db_tablespace_used_mb。名称: 表空间已用大小(MB)。描述: 数据库表空间已经使用的容量。业务含义: 监控实际存储用量。。"
+  },
+  {
+    "table_name": "db_tablespace_free_mb",
+    "friendly_name": "表空间剩余大小(MB)",
+    "description": "数据库表空间剩余可用容量。",
+    "business_meaning": "关键指标，防止存储空间耗尽。",
+    "category": "db_storage",
+    "sample_questions": [
+      "表空间还剩多少",
+      "剩余容量",
+      "Free Tablespace"
+    ],
+    "embedding_content": "表名: db_tablespace_free_mb。名称: 表空间剩余大小(MB)。描述: 数据库表空间剩余可用容量。业务含义: 关键指标，防止存储空间耗尽。。"
+  },
+  {
+    "table_name": "db_tablespace_used_percent",
+    "friendly_name": "表空间使用率",
+    "description": "数据库表空间的使用百分比。",
+    "business_meaning": "最直观的存储报警指标。",
+    "category": "db_storage",
+    "sample_questions": [
+      "表空间使用率",
+      "存储空间快满了吗"
+    ],
+    "embedding_content": "表名: db_tablespace_used_percent。名称: 表空间使用率。描述: 数据库表空间的使用百分比。业务含义: 最直观的存储报警指标。。"
+  },
+  {
+    "table_name": "db_index_percentage",
+    "friendly_name": "索引使用率",
+    "description": "索引空间的使用百分比。",
+    "business_meaning": "监控索引段的空间占用效率。",
+    "category": "db_storage",
+    "sample_questions": [
+      "索引使用率",
+      "Index Percentage"
+    ],
+    "embedding_content": "表名: db_index_percentage。名称: 索引使用率。描述: 索引空间的使用百分比。业务含义: 监控索引段的空间占用效率。。"
+  },
+  {
+    "table_name": "db_index_use_mbyte",
+    "friendly_name": "索引占用大小(MB)",
+    "description": "索引占用的实际空间大小。",
+    "business_meaning": "分析索引带来的存储开销。",
+    "category": "db_storage",
+    "sample_questions": [
+      "索引多大",
+      "索引占用空间"
+    ],
+    "embedding_content": "表名: db_index_use_mbyte。名称: 索引占用大小(MB)。描述: 索引占用的实际空间大小。业务含义: 分析索引带来的存储开销。。"
+  },
+  {
+    "table_name": "db_redolog_file_size",
+    "friendly_name": "RedoLog文件大小",
+    "description": "在线重做日志(Redo Log)文件的大小。",
+    "business_meaning": "日志配置参数监控。",
+    "category": "db_storage",
+    "sample_questions": [
+      "RedoLog多大",
+      "日志文件大小"
+    ],
+    "embedding_content": "表名: db_redolog_file_size。名称: RedoLog文件大小。描述: 在线重做日志(Redo Log)文件的大小。业务含义: 日志配置参数监控。。"
+  },
+  {
+    "table_name": "db_redolog_member_count",
+    "friendly_name": "RedoLog成员数量",
+    "description": "在线重做日志组中的成员(Member)数量。",
+    "business_meaning": "监控日志冗余配置。",
+    "category": "db_storage",
+    "sample_questions": [
+      "RedoLog成员数",
+      "日志组成员"
+    ],
+    "embedding_content": "表名: db_redolog_member_count。名称: RedoLog成员数量。描述: 在线重做日志组中的成员(Member)数量。业务含义: 监控日志冗余配置。。"
+  },
+  {
+    "table_name": "db_qps_select_total",
+    "friendly_name": "QPS(每秒查询数)",
+    "description": "数据库每秒执行的查询语句数量。",
+    "business_meaning": "衡量数据库业务读取压力的核心指标。",
+    "category": "db_performance",
+    "sample_questions": [
+      "QPS是多少",
+      "每秒查询数",
+      "查询压力"
+    ],
+    "embedding_content": "表名: db_qps_select_total。名称: QPS(每秒查询数)。描述: 数据库每秒执行的查询语句数量。业务含义: 衡量数据库业务读取压力的核心指标。。"
+  },
+  {
+    "table_name": "db_transaction_count",
+    "friendly_name": "事务总数",
+    "description": "数据库提交或回滚的事务总数量。",
+    "business_meaning": "衡量数据库业务交易量。",
+    "category": "db_performance",
+    "sample_questions": [
+      "事务数",
+      "Transaction Count",
+      "交易量"
+    ],
+    "embedding_content": "表名: db_transaction_count。名称: 事务总数。描述: 数据库提交或回滚的事务总数量。业务含义: 衡量数据库业务交易量。。"
+  },
+  {
+    "table_name": "db_session_count",
+    "friendly_name": "会话数量",
+    "description": "当前连接到数据库的活动会话总数。",
+    "business_meaning": "监控并发连接数，防止连接数耗尽。",
+    "category": "db_performance",
+    "sample_questions": [
+      "当前连接数",
+      "会话有多少",
+      "Session Count"
+    ],
+    "embedding_content": "表名: db_session_count。名称: 会话数量。描述: 当前连接到数据库的活动会话总数。业务含义: 监控并发连接数，防止连接数耗尽。。"
+  },
+  {
+    "table_name": "db_sql_stats_total",
+    "friendly_name": "SQL执行统计总数",
+    "description": "各类SQL语句（增删改查）执行的累计总数。",
+    "business_meaning": "宏观分析数据库SQL负载构成。",
+    "category": "db_performance",
+    "sample_questions": [
+      "SQL执行总数",
+      "SQL Stats"
+    ],
+    "embedding_content": "表名: db_sql_stats_total。名称: SQL执行统计总数。描述: 各类SQL语句（增删改查）执行的累计总数。业务含义: 宏观分析数据库SQL负载构成。。"
+  }
+]

@@ -1,0 +1,340 @@
+[
+  {
+    "table_name": "sys_cpu_sys_percent",
+    "friendly_name": "CPU使用率",
+    "description": "记录服务器CPU的整体使用率，反映计算资源负载。",
+    "business_meaning": "用于监控服务器是否过载，CPU是否成为瓶颈。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "CPU使用率是多少",
+      "查看CPU负载",
+      "当前CPU占用情况"
+    ],
+    "embedding_content": "表名: sys_cpu_sys_percent。名称: CPU使用率。描述: 记录服务器CPU的整体使用率，反映计算资源负载。业务含义: 用于监控服务器是否过载，CPU是否成为瓶颈。。"
+  },
+  {
+    "table_name": "sys_rss",
+    "friendly_name": "物理内存占用量",
+    "description": "进程当前占用的物理内存大小。",
+    "business_meaning": "用于监控特定节点进程实际消耗的物理资源，帮助分析单个服务的资源占用情况及内存溢出风险。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "物理内存占用多少",
+      "节点的RSS内存情况",
+      "是否存在内存溢出风险"
+    ],
+    "embedding_content": "表名: sys_rss。名称: 物理内存占用量。描述: 进程当前占用的物理内存大小。业务含义: 用于监控特定节点进程实际消耗的物理资源，帮助分析单个服务的资源占用情况及内存溢出风险。。"
+  },
+  {
+    "table_name": "sys_totalmem",
+    "friendly_name": "总内存",
+    "description": "总内存大小，包括可用内存和已用内存。",
+    "business_meaning": "描述总内存的大小，用于计算内存使用百分比（sys_rss / sys_totalmem）。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "服务器总内存是多少",
+      "内存总量查询",
+      "系统配置了多少内存"
+    ],
+    "embedding_content": "表名: sys_totalmem。名称: 总内存。描述: 总内存大小，包括可用内存和已用内存。业务含义: 描述总内存的大小，用于计算内存使用百分比（sys_rss / sys_totalmem）。。"
+  },
+  {
+    "table_name": "capacity",
+    "friendly_name": "磁盘总容量",
+    "description": "记录服务器或节点磁盘的总存储容量。",
+    "business_meaning": "用于评估基础设施的资源总量，作为计算存储使用率的基准值，帮助进行容量规划。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "磁盘总容量是多少",
+      "存储空间总量",
+      "节点磁盘多大"
+    ],
+    "embedding_content": "表名: capacity。名称: 磁盘总容量。描述: 记录服务器或节点磁盘的总存储容量。业务含义: 用于评估基础设施的资源总量，作为计算存储使用率的基准值，帮助进行容量规划。。"
+  },
+  {
+    "table_name": "capacity_used",
+    "friendly_name": "已用磁盘空间容量",
+    "description": "记录服务器指定磁盘分区或挂载点已使用的磁盘空间大小。",
+    "business_meaning": "用于监控磁盘存储资源消耗情况，预警磁盘空间耗尽风险，防止因磁盘写满导致的服务崩溃或数据丢失。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "已用磁盘空间是多少",
+      "磁盘用了多少容量",
+      "存储空间消耗情况"
+    ],
+    "embedding_content": "表名: capacity_used。名称: 已用磁盘空间容量。描述: 记录服务器指定磁盘分区或挂载点已使用的磁盘空间大小。业务含义: 用于监控磁盘存储资源消耗情况，预警磁盘空间耗尽风险，防止因磁盘写满导致的服务崩溃或数据丢失。。"
+  },
+  {
+    "table_name": "capacity_available",
+    "friendly_name": "可用剩余磁盘空间容量",
+    "description": "记录服务器指定磁盘分区的可用剩余空间大小。",
+    "business_meaning": "用于监控磁盘存储资源是否耗尽。当可用空间过低时，可能导致系统无法写入日志、数据库事务失败或应用程序崩溃。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "剩余磁盘空间",
+      "还有多少可用存储",
+      "磁盘快满了吗"
+    ],
+    "embedding_content": "表名: capacity_available。名称: 可用剩余磁盘空间容量。描述: 记录服务器指定磁盘分区的可用剩余空间大小。业务含义: 用于监控磁盘存储资源是否耗尽。当可用空间过低时，可能导致系统无法写入日志、数据库事务失败或应用程序崩溃。。"
+  },
+  {
+    "table_name": "admission_io_overload",
+    "friendly_name": "IO 准入控制过载率",
+    "description": "表示 IO 准入控制机制是否认为当前存储层的 L0 压缩任务处于过载状态（0到1之间）。",
+    "business_meaning": "用于监控 LSM 树存储引擎的健康状况。当数值接近 1 时，意味着后台压缩速度跟不上写入速度，可能会触发写暂停。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "IO过载率是多少",
+      "L0压缩是否过载",
+      "存储引擎健康状况"
+    ],
+    "embedding_content": "表名: admission_io_overload。名称: IO 准入控制过载率。描述: 表示 IO 准入控制机制是否认为当前存储层的 L0 压缩任务处于过载状态（0到1之间）。业务含义: 用于监控 LSM 树存储引擎的健康状况。当数值接近 1 时，意味着后台压缩速度跟不上写入速度，可能会触发写暂停。。"
+  },
+  {
+    "table_name": "sys_host_disk_read_bytes",
+    "friendly_name": "磁盘累计读取字节数",
+    "description": "记录自当前进程启动以来，从所有磁盘中读取的总字节数。",
+    "business_meaning": "用于监控节点的磁盘 I/O 负载情况。分析读取密集程度，评估是否存在磁盘 I/O 瓶颈。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "累计读取了多少数据",
+      "磁盘读取负载情况",
+      "磁盘I/O读取字节数"
+    ],
+    "embedding_content": "表名: sys_host_disk_read_bytes。名称: 磁盘累计读取字节数。描述: 记录自当前进程启动以来，从所有磁盘中读取的总字节数。业务含义: 用于监控节点的磁盘 I/O 负载情况。分析读取密集程度，评估是否存在磁盘 I/O 瓶颈。。"
+  },
+  {
+    "table_name": "sys_host_disk_write_bytes",
+    "friendly_name": "磁盘累计写入字节数",
+    "description": "记录自当前进程启动以来，操作系统报告的写入所有磁盘的总字节数。",
+    "business_meaning": "用于监控节点的 I/O 吞吐量。评估磁盘写入负载是否达到硬件瓶颈，或排查异常的写放大问题。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "累计写入字节数",
+      "磁盘写入吞吐量",
+      "排查写放大问题"
+    ],
+    "embedding_content": "表名: sys_host_disk_write_bytes。名称: 磁盘累计写入字节数。描述: 记录自当前进程启动以来，操作系统报告的写入所有磁盘的总字节数。业务含义: 用于监控节点的 I/O 吞吐量。评估磁盘写入负载是否达到硬件瓶颈，或排查异常的写放大问题。。"
+  },
+  {
+    "table_name": "sys_host_net_recv_bytes",
+    "friendly_name": "网络接收字节数",
+    "description": "记录自进程启动以来，操作系统报告的所有网络接口累计接收到的字节总数。",
+    "business_meaning": "用于监控服务器的网络吞吐量。评估入站流量压力、发现异常流量高峰或同步延迟问题。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "网络接收流量是多少",
+      "入站流量监控",
+      "查看网络接收总字节"
+    ],
+    "embedding_content": "表名: sys_host_net_recv_bytes。名称: 网络接收字节数。描述: 记录自进程启动以来，操作系统报告的所有网络接口累计接收到的字节总数。业务含义: 用于监控服务器的网络吞吐量。评估入站流量压力、发现异常流量高峰或同步延迟问题。。"
+  },
+  {
+    "table_name": "sys_host_net_send_bytes",
+    "friendly_name": "网络发送字节数",
+    "description": "记录自当前进程启动以来，通过所有网络接口发送的总字节数。",
+    "business_meaning": "用于监控节点的网络输出吞吐量。评估网络带宽利用率，识别异常的数据导出行为或同步流量压力。",
+    "category": "system_metrics",
+    "sample_questions": [
+      "网络发送流量",
+      "出站流量监控",
+      "网络输出字节数"
+    ],
+    "embedding_content": "表名: sys_host_net_send_bytes。名称: 网络发送字节数。描述: 记录自当前进程启动以来，通过所有网络接口发送的总字节数。业务含义: 用于监控节点的网络输出吞吐量。评估网络带宽利用率，识别异常的数据导出行为或同步流量压力。。"
+  },
+  {
+    "table_name": "rocksdb_block_cache_hits_total",
+    "friendly_name": "Block Cache 命中次数",
+    "description": "记录 RocksDB 存储引擎中 Block Cache（块缓存）的命中次数。",
+    "business_meaning": "用于评估数据库的读取效率。命中率越高，意味着越多的读取操作可以直接在内存中完成。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "缓存命中次数",
+      "RocksDB命中率",
+      "Block Cache Hits"
+    ],
+    "embedding_content": "表名: rocksdb_block_cache_hits_total。名称: Block Cache 命中次数。描述: 记录 RocksDB 存储引擎中 Block Cache（块缓存）的命中次数。业务含义: 用于评估数据库的读取效率。命中率越高，意味着越多的读取操作可以直接在内存中完成。。"
+  },
+  {
+    "table_name": "rocksdb_block_cache_misses",
+    "friendly_name": "Block Cache 未命中次数",
+    "description": "记录 RocksDB 存储引擎在尝试从块缓存中读取数据块时失败的累计次数。",
+    "business_meaning": "高未命中数通常意味着热点数据量超过了分配的缓存大小，会导致查询延迟增加。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "缓存未命中次数",
+      "Block Cache Misses",
+      "读取延迟高是不是缓存没命中"
+    ],
+    "embedding_content": "表名: rocksdb_block_cache_misses。名称: Block Cache 未命中次数。描述: 记录 RocksDB 存储引擎在尝试从块缓存中读取数据块时失败的累计次数。业务含义: 高未命中数通常意味着热点数据量超过了分配的缓存大小，会导致查询延迟增加。。"
+  },
+  {
+    "table_name": "rocksdb_block_cache_usage",
+    "friendly_name": "Block Cache 使用量",
+    "description": "记录 CockroachDB 存储引擎（RocksDB）当前块缓存所占用的内存字节数。",
+    "business_meaning": "用于监控数据库读缓存的资源消耗情况。辅助判断缓存效率或内存管理压力。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "缓存用了多少内存",
+      "RocksDB缓存使用量",
+      "查看Block Cache占用"
+    ],
+    "embedding_content": "表名: rocksdb_block_cache_usage。名称: Block Cache 使用量。描述: 记录 CockroachDB 存储引擎（RocksDB）当前块缓存所占用的内存字节数。业务含义: 用于监控数据库读缓存的资源消耗情况。辅助判断缓存效率或内存管理压力。。"
+  },
+  {
+    "table_name": "addsstable_applications_total",
+    "friendly_name": "SSTable 注入应用数",
+    "description": "记录在副本层面成功应用的 SSTable 注入（Ingestion）操作的累计次数。",
+    "business_meaning": "用于监控大批量数据导入（IMPORT/RESTORE）任务的进度和负载情况。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "数据导入进度",
+      "SSTable注入次数",
+      "IMPORT操作频率"
+    ],
+    "embedding_content": "表名: addsstable_applications_total。名称: SSTable 注入应用数。描述: 记录在副本层面成功应用的 SSTable 注入（Ingestion）操作的累计次数。业务含义: 用于监控大批量数据导入（IMPORT/RESTORE）任务的进度和负载情况。。"
+  },
+  {
+    "table_name": "keybytes",
+    "friendly_name": "Key 占用空间大小",
+    "description": "记录 CockroachDB 中所有 Key 所占用的物理存储字节数。",
+    "business_meaning": "用于分析存储结构的组成，识别是否存在大量旧版本 Key 或索引设计过于复杂。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "Key占了多大空间",
+      "索引和元数据大小",
+      "Key字节数统计"
+    ],
+    "embedding_content": "表名: keybytes。名称: Key 占用空间大小。描述: 记录 CockroachDB 中所有 Key 所占用的物理存储字节数。业务含义: 用于分析存储结构的组成，识别是否存在大量旧版本 Key 或索引设计过于复杂。。"
+  },
+  {
+    "table_name": "livebytes",
+    "friendly_name": "存活数据量",
+    "description": "记录当前存储引擎中“存活”数据的总字节数（未被删除且最新的版本）。",
+    "business_meaning": "反映数据库中实际有效业务数据的大小。对比磁盘已用空间可评估 MVCC 回收效率。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "有效数据量是多少",
+      "实际业务数据大小",
+      "存活数据字节数"
+    ],
+    "embedding_content": "表名: livebytes。名称: 存活数据量。描述: 记录当前存储引擎中“存活”数据的总字节数（未被删除且最新的版本）。业务含义: 反映数据库中实际有效业务数据的大小。对比磁盘已用空间可评估 MVCC 回收效率。。"
+  },
+  {
+    "table_name": "raft_process_logcommit_latency_sum",
+    "friendly_name": "Raft 日志提交累计延迟",
+    "description": "记录将 Raft 日志条目持久化到磁盘过程中的累计耗时总和。",
+    "business_meaning": "判断存储层健康状况的核心依据，用于计算平均持久化耗时，识别磁盘性能瓶颈。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "Raft日志提交总耗时",
+      "磁盘写入延迟总和",
+      "LogCommit延迟统计"
+    ],
+    "embedding_content": "表名: raft_process_logcommit_latency_sum。名称: Raft 日志提交累计延迟。描述: 记录将 Raft 日志条目持久化到磁盘过程中的累计耗时总和。业务含义: 判断存储层健康状况的核心依据，用于计算平均持久化耗时，识别磁盘性能瓶颈。。"
+  },
+  {
+    "table_name": "raft_process_logcommit_latency_count",
+    "friendly_name": "Raft 日志提交延迟计数",
+    "description": "记录将 Raft 日志条目持久化到磁盘时的延迟分布次数计数。",
+    "business_meaning": "衡量 Raft 写操作的频率。频率激增通常意味着写入负载增加，直接影响事务提交效率。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "Raft写操作频率",
+      "日志提交次数",
+      "Raft命令计数"
+    ],
+    "embedding_content": "表名: raft_process_logcommit_latency_count。名称: Raft 日志提交延迟计数。描述: 记录将 Raft 日志条目持久化到磁盘时的延迟分布次数计数。业务含义: 衡量 Raft 写操作的频率。频率激增通常意味着写入负载增加，直接影响事务提交效率。。"
+  },
+  {
+    "table_name": "distsender_batches",
+    "friendly_name": "已处理批次数",
+    "description": "记录节点处理的 KV 批次请求（Batches）的累计总数。",
+    "business_meaning": "衡量集群的吞吐量负载。通过增长速率分析业务请求密集程度。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "处理了多少批次请求",
+      "KV批次总数",
+      "集群吞吐量负载"
+    ],
+    "embedding_content": "表名: distsender_batches。名称: 已处理批次数。描述: 记录节点处理的 KV 批次请求（Batches）的累计总数。业务含义: 衡量集群的吞吐量负载。通过增长速率分析业务请求密集程度。。"
+  },
+  {
+    "table_name": "distsender_rpc_sent_local_total",
+    "friendly_name": "本地 RPC 总发送量",
+    "description": "记录通过本地服务器优化路径发送的副本寻址 RPC 数量。",
+    "business_meaning": "评估集群的数据局部性。数值越高说明更多请求在节点内完成，减少了网络消耗。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "本地读取比例",
+      "本地RPC发送次数",
+      "数据局部性如何"
+    ],
+    "embedding_content": "表名: distsender_rpc_sent_local_total。名称: 本地 RPC 总发送量。描述: 记录通过本地服务器优化路径发送的副本寻址 RPC 数量。业务含义: 评估集群的数据局部性。数值越高说明更多请求在节点内完成，减少了网络消耗。。"
+  },
+  {
+    "table_name": "distsender_rpc_sent_total",
+    "friendly_name": "分布式发送器 RPC 总发送量",
+    "description": "记录节点向副本地址发送的 RPC 请求总次数。",
+    "business_meaning": "反映分布式查询层的活跃程度。异常升高可能暗示全表扫描或热点分片。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "RPC发送总数",
+      "跨节点通信频率",
+      "节点间RPC流量"
+    ],
+    "embedding_content": "表名: distsender_rpc_sent_total。名称: 分布式发送器 RPC 总发送量。描述: 记录节点向副本地址发送的 RPC 请求总次数。业务含义: 反映分布式查询层的活跃程度。异常升高可能暗示全表扫描或热点分片。。"
+  },
+  {
+    "table_name": "raft_commandsapplied_total",
+    "friendly_name": "已应用的 Raft 总命令数",
+    "description": "记录在该节点上所有副本的 Raft 状态机已应用的命令数量。",
+    "business_meaning": "衡量节点负载及状态机同步效率。反映节点处理写入和同步的繁忙程度。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "Raft应用了多少命令",
+      "状态机同步进度",
+      "副本同步负载"
+    ],
+    "embedding_content": "表名: raft_commandsapplied_total。名称: 已应用的 Raft 总命令数。描述: 记录在该节点上所有副本的 Raft 状态机已应用的命令数量。业务含义: 衡量节点负载及状态机同步效率。反映节点处理写入和同步的繁忙程度。。"
+  },
+  {
+    "table_name": "exec_success_total",
+    "friendly_name": "KV 请求执行成功总数",
+    "description": "记录在该节点上成功执行的批量 KV 请求的总数。",
+    "business_meaning": "反映节点处理存储层请求的吞吐量，用于评估工作负载水平。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "成功执行了多少KV请求",
+      "存储层成功吞吐量",
+      "KV执行成功统计"
+    ],
+    "embedding_content": "表名: exec_success_total。名称: KV 请求执行成功总数。描述: 记录在该节点上成功执行的批量 KV 请求的总数。业务含义: 反映节点处理存储层请求的吞吐量，用于评估工作负载水平。。"
+  },
+  {
+    "table_name": "exec_error_total",
+    "friendly_name": "KV 请求执行失败总数",
+    "description": "记录在该节点上执行失败的批量 KV 请求的数量。",
+    "business_meaning": "监测 KV 层执行中的异常。包含一些业务层面的正常错误（如条件检查失败）。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "KV执行失败次数",
+      "存储层错误统计",
+      "KV请求报错情况"
+    ],
+    "embedding_content": "表名: exec_error_total。名称: KV 请求执行失败总数。描述: 记录在该节点上执行失败的批量 KV 请求的数量。业务含义: 监测 KV 层执行中的异常。包含一些业务层面的正常错误（如条件检查失败）。。"
+  },
+  {
+    "table_name": "sql_query_count_total",
+    "friendly_name": "SQL 查询总数",
+    "description": "记录自节点启动以来，所有已开始的 SQL 操作总数（含增删改查及事务控制）。",
+    "business_meaning": "用于监控数据库整体负载压力和 QPS 趋势，识别业务流量高峰。",
+    "category": "db_metrics",
+    "sample_questions": [
+      "SQL总查询量",
+      "QPS是多少",
+      "当前业务流量压力"
+    ],
+    "embedding_content": "表名: sql_query_count_total。名称: SQL 查询总数。描述: 记录自节点启动以来，所有已开始的 SQL 操作总数（含增删改查及事务控制）。业务含义: 用于监控数据库整体负载压力和 QPS 趋势，识别业务流量高峰。。"
+  }
+]

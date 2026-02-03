@@ -1,0 +1,232 @@
+"""
+GreptimeDB 专用数据源类
+
+由于 llama_index.SQLDatabase 在初始化时会使用 SQLAlchemy 自动加载表结构，
+这与 GreptimeDB 的 pg_catalog 不兼容，因此需要自定义实现。
+"""
+from typing import Any, Dict, List, Optional, Tuple
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+from .db_mschema import MSchema
+from .db_util import examples_to_str, preprocess_sql_query
+
+
+class GreptimeDBSource:
+    """
+    GreptimeDB 专用数据源，不使用 SQLAlchemy 的自动加载功能
+    """
+    
+    def __init__(self, engine: Engine, db_name: str = ''):
+        self._engine = engine
+        self._db_name = db_name or self._get_db_name_from_url()
+        self._dialect = engine.dialect.name
+        self._mschema = MSchema(db_id=self._db_name, schema=self._db_name)
+        self._usable_tables = []
+        self.init_mschema()
+    
+    def _get_db_name_from_url(self):
+        """从引擎 URL 获取数据库名"""
+        return self._engine.url.database or "public"
+    
+    @property
+    def mschema(self) -> MSchema:
+        return self._mschema
+    
+    @property
+    def dialect(self) -> str:
+        """兼容 DataBaseEnv 的 dialect 属性"""
+        return self._dialect
+    
+    @property
+    def db_name(self) -> str:
+        """兼容 DataBaseEnv 的 db_name 属性"""
+        return self._db_name
+    
+    @property
+    def database(self):
+        """兼容 DataBaseEnv 的接口"""
+        return self
+    
+    def init_mschema(self):
+        """初始化 MSchema，使用 INFORMATION_SCHEMA 获取元数据"""
+        # 获取表列表
+        tables = self._get_table_names()
+        self._usable_tables = tables
+        
+        for table_name in tables:
+            # 添加表
+            self._mschema.add_table(table_name, fields={}, comment='')
+            
+            # 获取列信息
+            columns = self._get_columns(table_name)
+            for col in columns:
+                # 获取示例值
+                try:
+                    examples = self._fetch_distinct_values(table_name, col['name'], 5)
+                except:
+                    examples = []
+                examples = examples_to_str(examples)
+                
+                self._mschema.add_field(
+                    table_name,
+                    col['name'],
+                    field_type=col['type'],
+                    primary_key=False,  # GreptimeDB 不提供主键信息
+                    nullable=col.get('nullable', True),
+                    default=col.get('default'),
+                    autoincrement=False,
+                    comment='',
+                    examples=examples
+                )
+    
+    def _get_table_names(self) -> List[str]:
+        """获取表列表"""
+        query = text("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = :schema
+            AND table_type = 'BASE TABLE'
+        """)
+        with self._engine.connect() as conn:
+            result = conn.execute(query, {"schema": self._db_name})
+            return [row[0] for row in result]
+    
+    def _get_columns(self, table_name: str) -> List[Dict]:
+        """获取列信息"""
+        query = text("""
+            SELECT 
+                column_name,
+                data_type,
+                is_nullable,
+                column_default
+            FROM information_schema.columns 
+            WHERE table_schema = :schema
+            AND table_name = :table_name
+            ORDER BY ordinal_position
+        """)
+        with self._engine.connect() as conn:
+            result = conn.execute(query, {"schema": self._db_name, "table_name": table_name})
+            columns = []
+            for row in result:
+                col_name, data_type, is_nullable, default = row
+                columns.append({
+                    "name": col_name,
+                    "type": self._map_type(data_type),
+                    "nullable": is_nullable == "YES",
+                    "default": default,
+                })
+            return columns
+    
+    def _map_type(self, data_type: str) -> str:
+        """映射 GreptimeDB 类型到标准类型"""
+        type_upper = data_type.upper()
+        type_mapping = {
+            "STRING": "VARCHAR",
+            "INT8": "SMALLINT",
+            "INT16": "SMALLINT",
+            "INT32": "INTEGER",
+            "INT64": "BIGINT",
+            "UINT8": "SMALLINT",
+            "UINT16": "INTEGER",
+            "UINT32": "BIGINT",
+            "UINT64": "BIGINT",
+            "FLOAT32": "REAL",
+            "FLOAT64": "DOUBLE PRECISION",
+            "BOOLEAN": "BOOLEAN",
+            "BINARY": "BYTEA",
+            "DATE": "DATE",
+            "DATETIME": "TIMESTAMP",
+            "TIMESTAMP": "TIMESTAMP",
+            "TIMESTAMPTZ": "TIMESTAMP WITH TIME ZONE",
+        }
+        return type_mapping.get(type_upper, type_upper)
+    
+    def _fetch_distinct_values(self, table_name: str, column_name: str, max_num: int = 5) -> List:
+        """获取列的不同值示例"""
+        # 验证表名和列名格式（防止SQL注入）
+        import re
+        identifier_pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+        if not re.match(identifier_pattern, table_name):
+            raise ValueError(f"表名格式无效: '{table_name}'")
+        if not re.match(identifier_pattern, column_name):
+            raise ValueError(f"列名格式无效: '{column_name}'")
+
+        query = text(f"""
+            SELECT DISTINCT "{column_name}"
+            FROM "{table_name}"
+            WHERE "{column_name}" IS NOT NULL
+            LIMIT :max_num
+        """)
+        with self._engine.connect() as conn:
+            result = conn.execute(query, {"max_num": max_num})
+            return [row[0] for row in result if row[0] is not None]
+    
+    def fetch(self, sql_query: str) -> Tuple[bool, Any]:
+        """执行 SQL 查询"""
+        sql_query = preprocess_sql_query(sql_query)
+        with self._engine.begin() as conn:
+            try:
+                cursor = conn.execute(text(sql_query))
+                records = cursor.fetchall()
+                records = [tuple(row) for row in records]
+                return True, records
+            except Exception as e:
+                return False, str(e)
+    
+    def fetch_with_column_name(self, sql_query: str) -> Tuple[Any, List]:
+        """执行查询并返回列名"""
+        sql_query = preprocess_sql_query(sql_query)
+        with self._engine.begin() as conn:
+            try:
+                cursor = conn.execute(text(sql_query))
+                columns = list(cursor.keys())
+                records = cursor.fetchall()
+                return records, columns
+            except Exception as e:
+                return None, []
+    
+    def fetch_truncated(self, sql_query: str, max_rows: Optional[int] = None, max_str_len: int = 30) -> Dict:
+        """执行查询并截断结果"""
+        sql_query = preprocess_sql_query(sql_query)
+        with self._engine.begin() as conn:
+            try:
+                cursor = conn.execute(text(sql_query))
+                result = cursor.fetchall()
+                truncated_results = []
+                if max_rows:
+                    result = result[:max_rows]
+                for row in result:
+                    truncated_row = tuple(
+                        self._truncate_word(column, length=max_str_len)
+                        for column in row
+                    )
+                    truncated_results.append(truncated_row)
+                return {"truncated_results": truncated_results, "fields": list(cursor.keys())}
+            except Exception as e:
+                return {"truncated_results": str(e), "fields": []}
+    
+    def _truncate_word(self, content: Any, length: int = 30) -> str:
+        """截断字符串"""
+        if content is None:
+            return ""
+        content_str = str(content)
+        if len(content_str) > length:
+            return content_str[:length] + "..."
+        return content_str
+    
+    def trunc_result_to_markdown(self, sql_res: Dict) -> str:
+        """将查询结果转换为 Markdown 表格"""
+        truncated_results = sql_res.get("truncated_results", [])
+        fields = sql_res.get("fields", [])
+
+        if not isinstance(truncated_results, list):
+            return str(truncated_results)
+
+        header = "| " + " | ".join(fields) + " |"
+        separator = "| " + " | ".join(["---"] * len(fields)) + " |"
+        rows = []
+        for row in truncated_results:
+            rows.append("| " + " | ".join(str(value) for value in row) + " |")
+        markdown_table = "\n".join([header, separator] + rows)
+        return markdown_table
