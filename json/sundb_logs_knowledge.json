@@ -1,0 +1,15 @@
+[
+    {
+        "table_name": "sundb_logs",
+        "friendly_name": "SunDB 运行日志",
+        "description": "记录 SunDB 数据库的运行日志，包含日志级别、内容、时间戳以及相关资源属性（如部署实例、主机名）。",
+        "business_meaning": "用于监控 SunDB 数据库运行状态，排查错误和异常，支持系统运维审计。",
+        "category": "database_logs",
+        "sample_questions": [
+            "查看最近的错误日志",
+            "统计某台主机的日志数量",
+            "搜索包含特定错误码的日志"
+        ],
+        "embedding_content": "表名: sundb_logs。名称: SunDB 运行日志。描述: 记录 SunDB 数据库的运行日志，包含日志级别、内容、时间戳以及相关资源属性（如部署实例、主机名）。业务含义: 用于监控 SunDB 数据库运行状态，排查错误和异常，支持系统运维审计。"
+    }
+]

@@ -30,6 +30,11 @@ def validate_sql_query(sql_query: str, allow_multiple: bool = False) -> None:
     if not sql_query or not sql_query.strip():
         raise ValueError("SQL 查询为空")
 
+    # 去除注释和空格后检查是否为空
+    stripped_sql = ' '.join(line.split('--')[0].split('#')[0] for line in sql_query.split('\n'))
+    if not stripped_sql.strip():
+        raise ValueError("SQL 查询为空或仅包含注释")
+
     # 解析 SQL
     parsed = sqlparse.parse(sql_query)
 
@@ -49,6 +54,19 @@ def validate_sql_query(sql_query: str, allow_multiple: bool = False) -> None:
             sql_upper = sql_query.upper()
             if not sql_upper.strip().startswith('SELECT'):
                 raise ValueError(f"不允许的 SQL 类型: {stmt_type}，只允许 SELECT 查询")
+
+        # 对于 UNKNOWN 类型，也需要检查是否包含实际的 SQL 关键词
+        if stmt_type == 'UNKNOWN':
+            # 获取去除注释的 SQL
+            cleaned_sql = ' '.join(
+                token.value for token in statement.flatten()
+                if token.ttype is not sqlparse.tokens.Comment
+                and token.ttype is not sqlparse.tokens.Comment.Single
+                and token.ttype is not sqlparse.tokens.Comment.Multiline
+            ).strip()
+
+            if not cleaned_sql or not any(keyword in cleaned_sql.upper() for keyword in ['SELECT', 'FROM', 'WHERE']):
+                raise ValueError("SQL 查询无效或仅包含注释")
 
         # 检查危险关键词（双重检查）
         sql_upper = sql_query.upper()

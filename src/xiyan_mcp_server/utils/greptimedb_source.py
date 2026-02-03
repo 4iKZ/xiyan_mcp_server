@@ -21,11 +21,13 @@ class GreptimeDBSource:
     GreptimeDB 专用数据源，不使用 SQLAlchemy 的自动加载功能
     """
     
-    def __init__(self, engine: Engine, db_name: str = ''):
+    def __init__(self, engine: Engine, db_name: str = '', system_prefix: str = ''):
         self._engine = engine
         self._db_name = db_name or self._get_db_name_from_url()
+        self._system_prefix = system_prefix
         self._dialect = engine.dialect.name
-        self._mschema = MSchema(db_id=self._db_name, schema=self._db_name)
+        # 使用 system_prefix 作为 db_id，且不设置 schema 前缀，因为表名已经包含了完整的 schema 名
+        self._mschema = MSchema(db_id=self._system_prefix or self._db_name, schema=None)
         self._usable_tables = []
         self.init_mschema()
     
@@ -54,26 +56,27 @@ class GreptimeDBSource:
     
     def init_mschema(self):
         """初始化 MSchema，使用 INFORMATION_SCHEMA 获取元数据"""
-        # 获取表列表
-        tables = self._get_table_names()
-        self._usable_tables = tables
+        # 获取所有匹配前缀的库和表列表
+        tables_with_schema = self._get_table_names_with_schema()
+        self._usable_tables = [f"{s}.{t}" for s, t in tables_with_schema]
         
-        for table_name in tables:
+        for schema_name, table_name in tables_with_schema:
+            full_table_name = f"{schema_name}.{table_name}"
             # 添加表
-            self._mschema.add_table(table_name, fields={}, comment='')
+            self._mschema.add_table(full_table_name, fields={}, comment='')
             
             # 获取列信息
-            columns = self._get_columns(table_name)
+            columns = self._get_columns(schema_name, table_name)
             for col in columns:
                 # 获取示例值
                 try:
-                    examples = self._fetch_distinct_values(table_name, col['name'], 5)
+                    examples = self._fetch_distinct_values(schema_name, table_name, col['name'], 5)
                 except:
                     examples = []
                 examples = examples_to_str(examples)
                 
                 self._mschema.add_field(
-                    table_name,
+                    full_table_name,
                     col['name'],
                     field_type=col['type'],
                     primary_key=False,  # GreptimeDB 不提供主键信息
@@ -83,20 +86,36 @@ class GreptimeDBSource:
                     comment='',
                     examples=examples
                 )
-    
-    def _get_table_names(self) -> List[str]:
-        """获取表列表"""
-        query = text("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = :schema
-            AND table_type = 'BASE TABLE'
-        """)
+
+    def _get_table_names_with_schema(self) -> List[Tuple[str, str]]:
+        """获取所有匹配前缀的 schema 和表名列表"""
+        if self._system_prefix:
+            query = text("""
+                SELECT table_schema, table_name 
+                FROM information_schema.tables 
+                WHERE table_schema LIKE :prefix
+                AND table_type = 'BASE TABLE'
+            """)
+            params = {"prefix": f"{self._system_prefix}%"}
+        else:
+            query = text("""
+                SELECT table_schema, table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = :schema
+                AND table_type = 'BASE TABLE'
+            """)
+            params = {"schema": self._db_name}
+            
         with self._engine.connect() as conn:
-            result = conn.execute(query, {"schema": self._db_name})
-            return [row[0] for row in result]
+            result = conn.execute(query, params)
+            return [(row[0], row[1]) for row in result]
+
+    def _get_table_names(self) -> List[str]:
+        """兼容旧方法，获取表列表"""
+        tables = self._get_table_names_with_schema()
+        return [f"{s}.{t}" for s, t in tables]
     
-    def _get_columns(self, table_name: str) -> List[Dict]:
+    def _get_columns(self, schema_name: str, table_name: str) -> List[Dict]:
         """获取列信息"""
         query = text("""
             SELECT 
@@ -110,7 +129,7 @@ class GreptimeDBSource:
             ORDER BY ordinal_position
         """)
         with self._engine.connect() as conn:
-            result = conn.execute(query, {"schema": self._db_name, "table_name": table_name})
+            result = conn.execute(query, {"schema": schema_name, "table_name": table_name})
             columns = []
             for row in result:
                 col_name, data_type, is_nullable, default = row
@@ -146,24 +165,27 @@ class GreptimeDBSource:
         }
         return type_mapping.get(type_upper, type_upper)
     
-    def _fetch_distinct_values(self, table_name: str, column_name: str, max_num: int = 5) -> List:
+    def _fetch_distinct_values(self, schema_name: str, table_name: str, column_name: str, max_num: int = 5) -> List:
         """获取列的不同值示例"""
         # 验证表名和列名格式（防止SQL注入）
         import re
-        identifier_pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+        identifier_pattern = r'^[a-zA-Z_][a-zA-Z0-9_\.]*$'
         if not re.match(identifier_pattern, table_name):
             logger.warning(f"表名格式验证失败: '{table_name}'")
             raise ValueError(f"表名格式无效: '{table_name}'")
+        if not re.match(identifier_pattern, schema_name):
+            logger.warning(f"Schema名格式验证失败: '{schema_name}'")
+            raise ValueError(f"Schema名格式无效: '{schema_name}'")
         if not re.match(identifier_pattern, column_name):
             logger.warning(f"列名格式验证失败: '{column_name}'")
             raise ValueError(f"列名格式无效: '{column_name}'")
 
         # 记录审计日志
-        logger.debug(f"获取列的不同值: table={table_name}, column={column_name}, max_num={max_num}")
+        logger.debug(f"获取列的不同值: schema={schema_name}, table={table_name}, column={column_name}, max_num={max_num}")
 
         query = text(f"""
             SELECT DISTINCT "{column_name}"
-            FROM "{table_name}"
+            FROM "{schema_name}"."{table_name}"
             WHERE "{column_name}" IS NOT NULL
             LIMIT :max_num
         """)

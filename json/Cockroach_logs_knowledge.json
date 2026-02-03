@@ -1,0 +1,15 @@
+[
+    {
+        "table_name": "cockroachdb_logs",
+        "friendly_name": "CockroachDB 日志",
+        "description": "记录 CockroachDB 的系统运行日志，包含严重程度、日志正文及资源属性。",
+        "business_meaning": "用于排查数据库故障、监控系统异常以及审计数据库操作。",
+        "category": "database_logs",
+        "sample_questions": [
+            "查看最近的错误日志",
+            "搜索包含特定关键字的日志",
+            "统计不同严重程度的日志数量"
+        ],
+        "embedding_content": "表名: cockroachdb_logs。名称: CockroachDB 日志。描述: 记录 CockroachDB 的系统运行日志，包含严重程度、日志正文及资源属性。业务含义: 用于排查数据库故障、监控系统异常以及审计数据库操作。"
+    }
+]

@@ -1,0 +1,27 @@
+[
+    {
+        "table_name": "opentelemetry_traces",
+        "friendly_name": "CockroachDB 链路追踪数据",
+        "description": "记录 CockroachDB 的分布式链路追踪信息，包括 Span ID、Trace ID、执行耗时及详细属性。",
+        "business_meaning": "用于分析 SQL 执行路径、识别慢查询瓶颈以及进行全链路性能优化。",
+        "category": "database_traces",
+        "sample_questions": [
+            "查询特定 Trace ID 的链路详情",
+            "找出执行时间最长的 Span",
+            "查看 SQL 执行的详细追踪信息"
+        ],
+        "embedding_content": "表名: opentelemetry_traces。名称: CockroachDB 链路追踪数据。描述: 记录 CockroachDB 的分布式链路追踪信息，包括 Span ID、Trace ID、执行耗时及详细属性。业务含义: 用于分析 SQL 执行路径、识别慢查询瓶颈以及进行全链路性能优化。"
+    },
+    {
+        "table_name": "opentelemetry_traces_services",
+        "friendly_name": "链路追踪服务列表",
+        "description": "记录产生链路追踪数据的服务名称。",
+        "business_meaning": "用于快速索引和查看当前系统中参与链路追踪的所有服务。",
+        "category": "database_traces",
+        "sample_questions": [
+            "列出所有已注册的服务名",
+            "查看有哪些服务在产生追踪数据"
+        ],
+        "embedding_content": "表名: opentelemetry_traces_services。名称: 链路追踪服务列表。描述: 记录产生链路追踪数据的服务名称。业务含义: 用于快速索引和查看当前系统中参与链路追踪的所有服务。"
+    }
+]

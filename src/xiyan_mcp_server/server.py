@@ -16,11 +16,11 @@ from .utils.file_util import extract_sql_from_qwen
 from .utils.llm_util import call_openai_sdk
 
 
-def create_db_source(db_engine, dialect: str, db_name: str = ''):
+def create_db_source(db_engine, dialect: str, db_name: str = '', system_prefix: str = ''):
     """根据方言创建合适的数据源"""
     if dialect.lower() in ('greptimedb', 'greptimedb_mysql'):
         from .utils.greptimedb_source import GreptimeDBSource
-        return GreptimeDBSource(db_engine, db_name=db_name)
+        return GreptimeDBSource(db_engine, db_name=db_name, system_prefix=system_prefix)
     else:
         return HITLSQLDatabase(db_engine)
 
@@ -105,6 +105,7 @@ global_config = get_yml_config()
 mcp_config = global_config.get("mcp", {})
 model_config = global_config["model"]
 global_db_config = global_config.get("database")
+global_system_prefix = global_db_config.get("system", "")
 global_xiyan_db_config = get_xiyan_config(global_db_config)
 dialect = global_db_config.get("dialect", "mysql")
 # 规范化 dialect 作为 URL scheme（下划线不允许在 URL scheme 中）
@@ -188,7 +189,7 @@ logger.info("正在注册资源和工具...")
 )
 async def read_resource() -> str:
     db_engine = get_db_engine()
-    db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""))
+    db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
     return db_source.mschema.to_mschema()
 
 
@@ -197,7 +198,7 @@ async def read_resource(table_name) -> str:
     """Read table contents."""
     try:
         db_engine = get_db_engine()
-        db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""))
+        db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
 
         # 验证表名是否存在（防止SQL注入）- 白名单验证
         if table_name not in db_source.mschema.tables:
@@ -233,6 +234,10 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str):
 
     # db_env = context_variables.get('db_env', None)
     prompt = f"""你现在是一名{db_env.dialect}数据分析专家，你的任务是根据参考的数据库schema和用户的问题，编写正确的SQL来回答用户的问题，生成的SQL用``sql 和```包围起来。
+注意：
+1、表名已经包含了完整的 schema 前缀（如 sundb_metrics.table_name），请直接引用这些表名，**禁止**添加 'public.' 或其他任何额外的库名/Schema 前缀。
+2、只生成一个 SQL 语句。
+
 【数据库schema】
 {db_env.mschema_str}
 
@@ -372,7 +377,7 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
     logger.info(f"Calling tool with arguments: {query}")
     try:
         db_engine = get_db_engine()
-        db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""))
+        db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
     except Exception as e:
         return "数据库连接失败" + str(e)
 
@@ -401,7 +406,8 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
             # 检索相关表并构建 Sub-Schema
             table_names, sub_schema = schema_retriever.retrieve_and_build(
                 query,
-                database=global_db_config.get("database")
+                database=global_db_config.get("database"),
+                system_prefix=global_system_prefix
             )
             logger.info(f"Schema 过滤：检索到 {len(table_names)} 个表: {table_names}")
             

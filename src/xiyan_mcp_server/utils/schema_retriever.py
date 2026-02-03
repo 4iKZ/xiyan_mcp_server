@@ -45,10 +45,31 @@ class SchemaRetriever:
         self.top_k = config.get("top_k", 5)
         self.score_threshold = config.get("score_threshold", 0.6)
     
+    def _get_matched_database_tags(self, prefix: str) -> List[str]:
+        """从 Redis 获取所有匹配前缀的 database 标签"""
+        try:
+            # 使用 FT.TAGVALS 获取所有 database 字段的值
+            all_tags = self.redis.execute_command("FT.TAGVALS", self.index_name, "database")
+            if not all_tags:
+                return []
+            
+            # 过滤匹配前缀的标签（不区分大小写前缀匹配，或精确前缀匹配）
+            matched = [
+                tag.decode() if isinstance(tag, bytes) else tag 
+                for tag in all_tags 
+                if (tag.decode() if isinstance(tag, bytes) else tag).startswith(prefix)
+            ]
+            logger.info(f"系统前缀 '{prefix}' 匹配到标签: {matched}")
+            return matched
+        except Exception as e:
+            logger.warning(f"获取标签失败: {e}")
+            return []
+
     def retrieve(
         self,
         query: str,
         database: Optional[str] = None,
+        system_prefix: Optional[str] = None,
         top_k: Optional[int] = None
     ) -> List[Dict]:
         """
@@ -56,15 +77,12 @@ class SchemaRetriever:
         
         Args:
             query: 用户问题
-            database: 限定数据库（可选）
+            database: 限定单个数据库（可选）
+            system_prefix: 限定系统前缀（可选，优先于 database）
             top_k: 返回数量（可选，默认使用配置值）
             
         Returns:
-            检索结果列表，每个元素包含：
-            - table_name: 表名
-            - friendly_name: 友好名称
-            - description: 描述
-            - score: 相似度分数
+            检索结果列表
         """
         from redis.commands.search.query import Query
         
@@ -72,16 +90,21 @@ class SchemaRetriever:
         
         # 生成查询向量
         query_embedding = self.embedding_service.embed_single(query)
-        logger.info(f"生成的查询向量长度: {len(query_embedding)}, 前5个值: {query_embedding[:5]}")
         query_bytes = np.array(query_embedding, dtype=np.float32).tobytes()
         
-        # 构建查询
-        # 基础查询：KNN 向量搜索
-        base_query = f"*=>[KNN {k} @embedding $query_vec AS score]"
+        # 构建过滤条件
+        filter_str = "*"
+        if system_prefix:
+            matched_tags = self._get_matched_database_tags(system_prefix)
+            if matched_tags:
+                # 使用 | 分隔多个标签实现并集查询
+                tags_joined = " | ".join(matched_tags)
+                filter_str = f"@database:{{{tags_joined}}}"
+        elif database:
+            filter_str = f"@database:{{{database}}}"
         
-        # 如果指定了数据库，添加过滤条件
-        if database:
-            base_query = f"@database:{{{database}}}=>[KNN {k} @embedding $query_vec AS score]"
+        # 构建最终 KNN 查询
+        base_query = f"({filter_str})=>[KNN {k} @embedding $query_vec AS score]"
         
         # 执行查询
         try:
@@ -131,22 +154,25 @@ class SchemaRetriever:
         self,
         query: str,
         database: Optional[str] = None,
+        system_prefix: Optional[str] = None,
         top_k: Optional[int] = None
     ) -> List[str]:
         """
-        检索并只返回表名列表
+        检索并返回带前缀的表名列表
         
         Args:
             query: 用户问题
             database: 限定数据库（可选）
+            system_prefix: 限定系统前缀（可选）
             top_k: 返回数量（可选）
             
         Returns:
-            表名列表
+            带前缀的表名列表 (e.g., ["sundb_metrics.sys_cpu_usage"])
         """
-        results = self.retrieve(query, database, top_k)
-        return [item["table_name"] for item in results]
-    
+        results = self.retrieve(query, database, system_prefix, top_k)
+        # 使用 database.table_name 格式，与 GreptimeDBSource 中的 mschema 保持一致
+        return [f"{item['database']}.{item['table_name']}" for item in results]
+
     def build_sub_schema(self, table_names: List[str]) -> str:
         """
         根据表名列表从完整 M-Schema 中提取 Sub-Schema
@@ -199,7 +225,8 @@ class SchemaRetriever:
     def retrieve_and_build(
         self,
         query: str,
-        database: Optional[str] = None
+        database: Optional[str] = None,
+        system_prefix: Optional[str] = None
     ) -> Tuple[List[str], str]:
         """
         一站式方法：检索表并构建 Sub-Schema
@@ -207,10 +234,11 @@ class SchemaRetriever:
         Args:
             query: 用户问题
             database: 限定数据库（可选）
+            system_prefix: 限定系统前缀（可选）
             
         Returns:
             (表名列表, Sub-Schema 字符串)
         """
-        table_names = self.retrieve_table_names(query, database)
+        table_names = self.retrieve_table_names(query, database, system_prefix)
         sub_schema = self.build_sub_schema(table_names)
         return table_names, sub_schema
