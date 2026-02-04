@@ -268,7 +268,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str):
         status, res = db_env.database.fetch(sql_query)
         if not status:
             logger.warning(f"Initial SQL execution failed: {res}. Starting fix loop...")
-            for idx in range(3):
+            for idx in range(5):
                 sql_query = sql_fix(
                     db_env.dialect, db_env.mschema_str, query, sql_query, res
                 )
@@ -278,7 +278,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str):
                     logger.info("SQL fix successful.")
                     break
             if not status:
-                logger.error(f"SQL fix failed after 3 attempts. Last error: {res}")
+                logger.error(f"SQL fix failed after 5 attempts. Last error: {res}")
 
         sql_res = db_env.database.fetch_truncated(sql_query, max_rows=100)
         logger.info(f"SQL result count: {len(sql_res.get('truncated_results', []))}")
@@ -329,21 +329,30 @@ def sql_fix(
 
 def format_result(result: dict, format_type: str = "markdown") -> str:
     """将查询结果格式化为指定格式
-    
+
     Args:
         result: 包含 truncated_results 和 fields 的字典
         format_type: 格式类型 (markdown, json, csv)
     """
     import json as json_module
-    
+
     # 解析 result 字符串为字典（如果是字符串）
     if isinstance(result, str):
         # 尝试从字符串中提取数据
         return result  # 如果无法解析，直接返回原始字符串
-    
+
     fields = result.get("fields", [])
     rows = result.get("truncated_results", [])
-    
+
+    # 检查是否为错误结果（truncated_results 是字符串而非列表）
+    if isinstance(rows, str):
+        # 这是一个错误消息，直接返回
+        return f"Error: {rows}"
+
+    # 确保 rows 是列表格式
+    if not isinstance(rows, list):
+        return f"Unexpected result format: {str(result)}"
+
     if format_type == "json":
         # JSON 格式
         data = []
@@ -353,14 +362,16 @@ def format_result(result: dict, format_type: str = "markdown") -> str:
                 row_dict[field] = row[i] if i < len(row) else None
             data.append(row_dict)
         return json_module.dumps({"data": data, "fields": fields}, ensure_ascii=False, indent=2)
-    
+
     elif format_type == "csv":
         # CSV 格式
+        if not fields:
+            return "No data available"
         lines = [",".join(fields)]
         for row in rows:
             lines.append(",".join(str(v) for v in row))
         return "\n".join(lines)
-    
+
     else:
         # 默认 Markdown 格式
         if not fields:

@@ -22,20 +22,24 @@ class EmbeddingService:
     def __init__(self, config: dict):
         """
         初始化 Embedding 服务
-        
+
         Args:
             config: 配置字典，包含：
                 - model: 模型名称
                 - use_api: 是否使用 API 模式
                 - api_key: API 密钥（API 模式需要）
+                - api_url: API 地址（可选，默认为 ModelScope）
                 - vector_dim: 向量维度
+                - use_vllm_format: 是否使用 vLLM 格式（请求用 texts，响应用 embeddings）
         """
         self.model_name = config.get("model", "iic/nlp_gte_sentence-embedding_chinese-base")
         self.use_api = config.get("use_api", False)
         self.api_key = config.get("api_key", "")
+        self.api_url = config.get("api_url", "https://api-inference.modelscope.cn/v1/")
+        self.use_vllm_format = config.get("use_vllm_format", False)
         self.vector_dim = config.get("vector_dim", 768)
         self._model = None
-        
+
         if not self.use_api:
             self._init_local_model()
     
@@ -141,22 +145,42 @@ class EmbeddingService:
         """使用 API 进行向量化"""
         try:
             from openai import OpenAI
-            
+
             client = OpenAI(
                 api_key=self.api_key,
-                base_url="https://api-inference.modelscope.cn/v1/"
+                base_url=self.api_url
             )
-            
-            # ModelScope 兼容 OpenAI embeddings API
-            response = client.embeddings.create(
-                model=self.model_name,
-                input=texts
-            )
-            
-            # 提取向量
-            embeddings = [item.embedding for item in response.data]
-            return embeddings
-            
+
+            if self.use_vllm_format:
+                # vLLM 格式：使用 texts 字段
+                import requests
+                response = requests.post(
+                    f"{self.api_url}embeddings",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.api_key}"
+                    },
+                    json={
+                        "model": self.model_name,
+                        "texts": texts
+                    },
+                    timeout=60
+                )
+                response.raise_for_status()
+                result = response.json()
+                # vLLM 响应格式: {"embeddings": [[...], [...]]}
+                embeddings = result.get("embeddings", [])
+                return embeddings
+            else:
+                # 标准 OpenAI/ModelScope 格式
+                response = client.embeddings.create(
+                    model=self.model_name,
+                    input=texts
+                )
+                # 提取向量
+                embeddings = [item.embedding for item in response.data]
+                return embeddings
+
         except Exception as e:
             logger.error(f"API 向量化失败: {e}")
             raise

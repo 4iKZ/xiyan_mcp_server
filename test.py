@@ -104,7 +104,7 @@ def test_query(query: str, format_type: str = "markdown"):
         print(f"异常: {e}")
 
 if __name__ == "__main__":
-    query = "查询最近5小时数据库集群的平均磁盘IO情况"
+    query = "查询最近5分钟数据库集群各个机器的内存占用趋势情况"
     
     # 测试三种格式
     print("\n" + "="*60)
