@@ -1,8 +1,15 @@
+# Claude-specific files
 /.trae/documents
 /.claude
-CLAUDE.md
+.claude/memory.txt
+
+# Python
 __pycache__/
 *.pyc
+
+# Environment
 .env
+
+# Logs
 xiyan_mcp.log
 2025-02-04-开发总结.md
