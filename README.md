@@ -1,0 +1,244 @@
+# XiYan MCP Server
+
+基于阿里 XiYanSQL 框架改造的 Model Context Protocol (MCP) 服务器，支持通过自然语言查询时序数据库和关系型数据库。
+
+## 项目概述
+
+本项目基于 [XGenerationLab/xiyan_mcp_server](https://github.com/XGenerationLab/xiyan_mcp_server) 进行深度改造，增强了以下功能：
+
+- 支持 GreptimeDB 时序数据库
+- Schema 语义过滤与延迟加载优化
+- 本地 vLLM 模型支持
+- 多格式输出（Markdown、JSON、CSV）
+- SQL 自动修复机制（最多 5 次重试）
+
+## 核心特性
+
+### 数据库支持
+- GreptimeDB（时序数据库）
+- MySQL
+- PostgreSQL
+- SQLite
+
+### 模型支持
+- 通用 LLMs（GPT、Qwen-Max 等）
+- XiYanSQL-QwenCoder 系列模型
+- 本地 vLLM 部署模型
+
+### 性能优化
+- Redis 语义 Schema 检索
+- 列信息延迟加载
+- 全局数据库连接池
+- SQL 自动错误修复
+
+## 安装
+
+### 系统要求
+- Python 3.11+
+- Redis（可选，用于 Schema 过滤）
+
+### 快速安装
+
+```bash
+cd /data/xiyan_mcp_server
+pip install -e .
+```
+
+## 配置
+
+编辑 `src/xiyan_mcp_server/config.yml`：
+
+```yaml
+model:
+  name: "/share/modelscope/XiYanSQL-QwenCoder-14B-2504"
+  key: "not-needed"
+  url: "http://10.0.0.8:10000/v1/"
+
+database:
+  system: "sundb"
+  dialect: "greptimedb"
+  host: "10.0.0.8"
+  port: 4003
+  user: "root"
+  password: ""
+  database: "public"
+
+schema_filter:
+  enabled: true
+  knowledge_dir: "json"
+  top_k: 5
+  score_threshold: 0.4
+
+embedding:
+  model: "Qwen/Qwen3-Embedding-8B"
+  use_api: true
+  use_vllm_format: true
+  api_url: "http://10.0.0.8:10001/v1/"
+  api_key: "not-needed"
+  vector_dim: 4096
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  index_name: "xiyan_schema"
+```
+
+## 启动服务
+
+### 直接启动
+
+```bash
+PYTHONPATH=/data/xiyan_mcp_server/src python -m xiyan_mcp_server streamable-http --host 0.0.0.0 --port 8000
+```
+
+### Systemd 服务
+
+```bash
+systemctl start xiyan-mcp-server
+systemctl status xiyan-mcp-server
+```
+
+### 查看日志
+
+```bash
+tail -f /tmp/xiyan_server.log
+```
+
+## API 使用
+
+### 初始化会话
+
+```python
+import requests
+
+base_url = "http://localhost:8000/mcp"
+headers = {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream"
+}
+
+# 初始化
+init_request = {
+    "jsonrpc": "2.0",
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {"name": "test-client", "version": "1.0"}
+    },
+    "id": 1
+}
+
+resp = requests.post(base_url, headers=headers, json=init_request, timeout=60)
+session_id = resp.headers.get("Mcp-Session-Id")
+```
+
+### 查询数据
+
+```python
+headers["Mcp-Session-Id"] = session_id
+
+call_request = {
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+        "name": "get_data",
+        "arguments": {
+            "query": "查询最近5小时数据库集群的平均内存使用率",
+            "format": "markdown"  # markdown, json, csv
+        }
+    },
+    "id": 2
+}
+
+resp = requests.post(base_url, headers=headers, json=call_request, timeout=300)
+```
+
+## 可用工具
+
+### get_data
+
+通过自然语言查询数据库并返回结果。
+
+参数：
+- `query`（必填）：自然语言查询问题
+- `format`（可选）：输出格式
+  - `markdown`：表格格式（默认）
+  - `json`：JSON 格式
+  - `csv`：CSV 格式
+
+## 项目架构
+
+```
+src/xiyan_mcp_server/
+├── server.py           # MCP 服务入口
+├── database_env.py     # 数据库环境封装
+├── config.yml          # 配置文件
+└── utils/
+    ├── db_util.py              # 数据库连接池
+    ├── llm_util.py             # LLM API 调用
+    ├── schema_retriever.py     # Schema 检索
+    ├── embedding_service.py    # Embedding 服务
+    ├── db_source.py            # 数据库元数据
+    └── greptimedb_source.py    # GreptimeDB 支持
+```
+
+## 与原项目的主要差异
+
+1. **GreptimeDB 支持**：新增 GreptimeDB 方言和专用数据源
+2. **Schema 优化**：基于 Redis 的语义检索 + 延迟加载
+3. **本地模型**：完整支持本地 vLLM 部署
+4. **输出格式**：支持 Markdown/JSON/CSV 三种格式
+5. **错误处理**：增强 SQL 修复逻辑（5 次重试）
+6. **配置分离**：Embedding 和主模型配置分离
+
+## 测试
+
+```bash
+# 通用测试
+python test.py
+
+# 自然语言查询测试
+python test_natural_language_queries.py
+
+# CockroachDB 测试
+python test_cockroachdb.py
+```
+
+## 开源许可
+
+本项目基于 Apache 2.0 许可证开源。
+
+## 致谢与原作者
+
+本项目基于 [XGenerationLab/xiyan_mcp_server](https://github.com/XGenerationLab/xiyan_mcp_server) 进行改造。
+
+感谢原项目的所有贡献者：
+
+- XGenerationLab
+- ahmedmustahid
+- YifuLiuL
+- eltociear
+- lwsinclair
+- Matvey-Kuk
+- willyomg
+- ZhuangbilityY
+
+原项目技术支持来自 [XiYan-SQL](https://github.com/XGenerationLab/XiYan-SQL) 框架。
+
+## 引用
+
+如果您在研究中使用了本项目，欢迎引用：
+
+```bibtex
+@article{XiYanSQL,
+      title={XiYan-SQL: A Novel Multi-Generator Framework For Text-to-SQL},
+      author={Yifu Liu and Yin Zhu and Yingqi Gao and Zhiling Luo and Xiaoxia Li and Xiaorong Shi and Yuntao Hong and Jinyang Gao and Yu Li and Bolin Ding and Jingren Zhou},
+      year={2025},
+      eprint={2507.04701},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2507.04701},
+}
+```
