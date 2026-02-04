@@ -24,11 +24,12 @@ class SchemaRetriever:
         redis_client,
         embedding_service,
         mschema,
-        config: dict
+        config: dict,
+        db_source=None
     ):
         """
         初始化检索服务
-        
+
         Args:
             redis_client: Redis 客户端实例
             embedding_service: Embedding 服务实例
@@ -37,10 +38,12 @@ class SchemaRetriever:
                 - index_name: Redis 索引名称
                 - top_k: 返回的表数量
                 - score_threshold: 相似度阈值
+            db_source: 数据库源对象（可选，用于延迟加载列信息）
         """
         self.redis = redis_client
         self.embedding_service = embedding_service
         self.mschema = mschema
+        self.db_source = db_source
         self.index_name = config.get("index_name", "xiyan_schema")
         self.top_k = config.get("top_k", 5)
         self.score_threshold = config.get("score_threshold", 0.6)
@@ -218,16 +221,33 @@ class SchemaRetriever:
                 table_info = self.mschema.tables[actual_table_name]
                 matched_count += 1
 
+                # ✨ 延迟加载：如果表的字段为空，尝试加载列信息
+                fields = table_info.get('fields', {})
+                if not fields and self.db_source and hasattr(self.db_source, '_load_table_columns'):
+                    try:
+                        # 解析 schema 和 table 名称
+                        parts = actual_table_name.split('.', 1)
+                        if len(parts) == 2:
+                            schema_name, table_name_only = parts
+                            logger.info(f"延迟加载表列信息: {actual_table_name}")
+                            self.db_source._load_table_columns(schema_name, table_name_only)
+                            # 重新获取表信息（现在应该有字段了）
+                            table_info = self.mschema.tables[actual_table_name]
+                            fields = table_info.get('fields', {})
+                            logger.info(f"延迟加载完成: {actual_table_name}, {len(fields)} 个字段")
+                    except Exception as e:
+                        logger.warning(f"延迟加载失败 {actual_table_name}: {e}")
+
                 # 添加表（使用原始大小写的表名）
                 sub_mschema.add_table(
                     actual_table_name,
-                    fields=table_info.get('fields', {}),
+                    fields=fields,
                     comment=table_info.get('comment', '')
                 )
 
                 # 复制字段信息
-                if 'fields' in table_info:
-                    for field_name, field_info in table_info['fields'].items():
+                if fields:
+                    for field_name, field_info in fields.items():
                         sub_mschema.tables[actual_table_name]['fields'][field_name] = field_info
 
         sub_schema_str = sub_mschema.to_mschema()

@@ -22,14 +22,18 @@ class GreptimeDBSource:
     """
     
     def __init__(self, engine: Engine, db_name: str = '', system_prefix: str = ''):
+        logger.info(f"GreptimeDBSource.__init__ 开始: db_name={db_name}, system_prefix={system_prefix}")
         self._engine = engine
         self._db_name = db_name or self._get_db_name_from_url()
         self._system_prefix = system_prefix
         self._dialect = engine.dialect.name
+        logger.info(f"GreptimeDBSource: dialect={self._dialect}, db_name={self._db_name}")
         # 使用 system_prefix 作为 db_id，且不设置 schema 前缀，因为表名已经包含了完整的 schema 名
         self._mschema = MSchema(db_id=self._system_prefix or self._db_name, schema=None)
         self._usable_tables = []
+        logger.info(f"GreptimeDBSource: 开始调用 init_mschema")
         self.init_mschema()
+        logger.info(f"GreptimeDBSource.__init__ 完成")
     
     def _get_db_name_from_url(self):
         """从引擎 URL 获取数据库名"""
@@ -55,60 +59,87 @@ class GreptimeDBSource:
         return self
     
     def init_mschema(self):
-        """初始化 MSchema，使用 INFORMATION_SCHEMA 获取元数据"""
+        """初始化 MSchema，使用 INFORMATION_SCHEMA 获取元数据
+
+        注意：由于数据库中可能有大量表（2343+），我们只获取表列表，
+        不在初始化时获取列信息和示例值。这些信息会在需要时通过 Schema 过滤延迟加载。
+        """
+        logger.info(f"init_mschema: 开始获取表列表")
         # 获取所有匹配前缀的库和表列表
         tables_with_schema = self._get_table_names_with_schema()
+        logger.info(f"init_mschema: 找到 {len(tables_with_schema)} 个表")
         self._usable_tables = [f"{s}.{t}" for s, t in tables_with_schema]
-        
+
+        # 只添加表名，不获取列信息（延迟加载）
         for schema_name, table_name in tables_with_schema:
             full_table_name = f"{schema_name}.{table_name}"
-            # 添加表
+            # 添加空表，字段信息将在需要时通过 Schema 过滤获取
             self._mschema.add_table(full_table_name, fields={}, comment='')
-            
-            # 获取列信息
-            columns = self._get_columns(schema_name, table_name)
-            for col in columns:
-                # 获取示例值
-                try:
-                    examples = self._fetch_distinct_values(schema_name, table_name, col['name'], 5)
-                except:
-                    examples = []
-                examples = examples_to_str(examples)
-                
-                self._mschema.add_field(
-                    full_table_name,
-                    col['name'],
-                    field_type=col['type'],
-                    primary_key=False,  # GreptimeDB 不提供主键信息
-                    nullable=col.get('nullable', True),
-                    default=col.get('default'),
-                    autoincrement=False,
-                    comment='',
-                    examples=examples
-                )
+
+        logger.info(f"init_mschema: 完成，已添加 {len(tables_with_schema)} 个表（不含列信息）")
+
+    def _load_table_columns(self, schema_name: str, table_name: str):
+        """延迟加载单个表的列信息"""
+        full_table_name = f"{schema_name}.{table_name}"
+
+        # 如果已经有列信息，跳过
+        if self._mschema.tables.get(full_table_name, {}).get('fields'):
+            return
+
+        logger.info(f"延迟加载表列信息: {full_table_name}")
+
+        # 获取列信息
+        columns = self._get_columns(schema_name, table_name)
+        for col in columns:
+            # 获取示例值
+            try:
+                examples = self._fetch_distinct_values(schema_name, table_name, col['name'], 5)
+            except:
+                examples = []
+            examples = examples_to_str(examples)
+
+            self._mschema.add_field(
+                full_table_name,
+                col['name'],
+                field_type=col['type'],
+                primary_key=False,  # GreptimeDB 不提供主键信息
+                nullable=col.get('nullable', True),
+                default=col.get('default'),
+                autoincrement=False,
+                comment='',
+                examples=examples
+            )
+
+        logger.info(f"延迟加载完成: {full_table_name}")
 
     def _get_table_names_with_schema(self) -> List[Tuple[str, str]]:
         """获取所有匹配前缀的 schema 和表名列表"""
+        logger.info(f"_get_table_names_with_schema: system_prefix={self._system_prefix}")
         if self._system_prefix:
             query = text("""
-                SELECT table_schema, table_name 
-                FROM information_schema.tables 
+                SELECT table_schema, table_name
+                FROM information_schema.tables
                 WHERE table_schema LIKE :prefix
                 AND table_type = 'BASE TABLE'
             """)
             params = {"prefix": f"{self._system_prefix}%"}
         else:
             query = text("""
-                SELECT table_schema, table_name 
-                FROM information_schema.tables 
+                SELECT table_schema, table_name
+                FROM information_schema.tables
                 WHERE table_schema = :schema
                 AND table_type = 'BASE TABLE'
             """)
             params = {"schema": self._db_name}
-            
+
+        logger.info(f"_get_table_names_with_schema: 开始执行查询")
         with self._engine.connect() as conn:
+            logger.info(f"_get_table_names_with_schema: 连接成功，执行查询")
             result = conn.execute(query, params)
-            return [(row[0], row[1]) for row in result]
+            logger.info(f"_get_table_names_with_schema: 查询成功，获取结果")
+            tables = [(row[0], row[1]) for row in result]
+            logger.info(f"_get_table_names_with_schema: 返回 {len(tables)} 个表")
+            return tables
 
     def _get_table_names(self) -> List[str]:
         """兼容旧方法，获取表列表"""

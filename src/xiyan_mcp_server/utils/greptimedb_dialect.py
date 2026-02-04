@@ -145,16 +145,16 @@ class GreptimeDBInspector(PGInspector):
 class GreptimeDBDialect(postgresql_psycopg2.PGDialect_psycopg2):
     """
     GreptimeDB 专用方言
-    
+
     继承 PostgreSQL psycopg2 方言，但禁用类型反射以避免 pg_catalog 兼容性问题
     """
-    
+
     name = "greptimedb"
-    
+
     # 禁用类型缓存，避免查询 pg_type
     supports_native_enum = False
     supports_native_boolean = True
-    
+
     inspector = GreptimeDBInspector
 
     def initialize(self, connection):
@@ -168,7 +168,7 @@ class GreptimeDBDialect(postgresql_psycopg2.PGDialect_psycopg2):
         self.supports_smallserial = True
         self.supports_native_decimal = True
         self._backslash_escapes = True
-        
+
         # 设置 psycopg2 特定属性
         self.psycopg2_version = (2, 9)
         self._has_native_hstore = False
@@ -185,18 +185,17 @@ class GreptimeDBDialect(postgresql_psycopg2.PGDialect_psycopg2):
 
     def get_default_isolation_level(self, dbapi_conn):
         return "AUTOCOMMIT"
-    
+
     def _get_default_schema_name(self, connection):
         return "public"
-    
+
     def on_connect(self):
-        """连接时的回调，跳过类型注册"""
-        # 返回 None 跳过默认的类型注册逻辑
-        return None
+        """连接时的回调，返回空函数列表以跳过 hstore 检测"""
+        # 返回空列表，跳过所有 psycopg2 扩展注册
+        return []
 
 
-# 注册方言
+# 注册方言 - 只注册基础方言名
 from sqlalchemy.dialects import registry
 registry.register("greptimedb", "xiyan_mcp_server.utils.greptimedb_dialect", "GreptimeDBDialect")
-registry.register("greptimedb.psycopg2", "xiyan_mcp_server.utils.greptimedb_dialect", "GreptimeDBDialect")
 

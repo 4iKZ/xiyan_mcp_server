@@ -43,14 +43,29 @@ def connect_to_greptimedb(db_name, user_name, db_pwd, db_host, port) -> Engine:
     """
     # 导入并注册 GreptimeDB 方言
     from . import greptimedb_dialect  # noqa: F401
-    
-    # 构建连接字符串，密码为空时不包含冒号
+    import psycopg2
+
+    # 构建连接字符串，使用 greptimedb 方言（不带 +psycopg2）
     if db_pwd:
-        conn_str = f"greptimedb+psycopg2://{user_name}:{db_pwd}@{db_host}:{port}/{db_name}"
+        conn_str = f"greptimedb://{user_name}:{db_pwd}@{db_host}:{port}/{db_name}"
     else:
-        conn_str = f"greptimedb+psycopg2://{user_name}@{db_host}:{port}/{db_name}"
-    
-    db_engine = create_engine(conn_str)
+        conn_str = f"greptimedb://{user_name}@{db_host}:{port}/{db_name}"
+
+    # 使用 creator 函数绕过 psycopg2 的 hstore 检测
+    def creator():
+        # 直接创建 psycopg2 连接，不注册扩展
+        if db_pwd:
+            return psycopg2.connect(
+                host=db_host, port=port, user=user_name,
+                password=db_pwd, dbname=db_name
+            )
+        else:
+            return psycopg2.connect(
+                host=db_host, port=port, user=user_name,
+                dbname=db_name
+            )
+
+    db_engine = create_engine(conn_str, creator=creator)
     return db_engine
 
 

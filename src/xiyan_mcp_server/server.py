@@ -407,7 +407,8 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
                             _redis_client,
                             _embedding_service,
                             db_source.mschema,
-                            _retriever_config
+                            _retriever_config,
+                            db_source=db_source  # 传入 db_source 用于延迟加载
                         )
                         logger.info("Schema 检索器已初始化")
             
