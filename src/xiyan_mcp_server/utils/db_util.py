@@ -3,7 +3,18 @@ import os
 import datetime, decimal
 from sqlalchemy import create_engine, MetaData, Table, Column, String, Integer, select, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.pool import QueuePool
 from .db_config import DBConfig
+
+# 连接池配置（适用于所有数据库类型）
+POOL_CONFIG = {
+    "poolclass": QueuePool,
+    "pool_size": 10,          # 基础连接数（SQLAlchemy 默认 5）
+    "max_overflow": 20,       # 额外连接数（SQLAlchemy 默认 10）
+    "pool_timeout": 30,       # 获取连接超时（秒）
+    "pool_recycle": 3600,     # 连接回收时间（秒，避免被数据库关闭）
+    "pool_pre_ping": True,    # 连接前先 ping（检测断开的连接）
+}
 
 
 def init_db_conn(db_config: DBConfig) -> Engine:
@@ -23,17 +34,27 @@ def init_db_conn(db_config: DBConfig) -> Engine:
 
 def connect_to_sqlite(db_path: str) -> Engine:
     assert os.path.exists(db_path)
-    db_engine = create_engine(f'sqlite:///{os.path.abspath(db_path)}')
+    # SQLite 使用 SingletonThreadPool（不需要 QueuePool）
+    db_engine = create_engine(
+        f'sqlite:///{os.path.abspath(db_path)}',
+        connect_args={"check_same_thread": False}  # 允许多线程使用
+    )
     return db_engine
 
 
 def connect_to_mysql(db_name, user_name, db_pwd, db_host, port) -> Engine:
-    db_engine = create_engine(f"mysql+pymysql://{user_name}:{db_pwd}@{db_host}:{port}/{db_name}")
+    db_engine = create_engine(
+        f"mysql+pymysql://{user_name}:{db_pwd}@{db_host}:{port}/{db_name}",
+        **POOL_CONFIG
+    )
     return db_engine
 
 
 def connect_to_pg(db_name, user_name, db_pwd, db_host, port) -> Engine:
-    db_engine = create_engine(f"postgresql+psycopg2://{user_name}:{db_pwd}@{db_host}:{port}/{db_name}")
+    db_engine = create_engine(
+        f"postgresql+psycopg2://{user_name}:{db_pwd}@{db_host}:{port}/{db_name}",
+        **POOL_CONFIG
+    )
     return db_engine
 
 
@@ -65,7 +86,7 @@ def connect_to_greptimedb(db_name, user_name, db_pwd, db_host, port) -> Engine:
                 dbname=db_name
             )
 
-    db_engine = create_engine(conn_str, creator=creator)
+    db_engine = create_engine(conn_str, creator=creator, **POOL_CONFIG)
     return db_engine
 
 
@@ -79,8 +100,8 @@ def connect_to_greptimedb_mysql(db_name, user_name, db_pwd, db_host, port) -> En
         conn_str = f"mysql+pymysql://{user_name}:{db_pwd}@{db_host}:{port}/{db_name}"
     else:
         conn_str = f"mysql+pymysql://{user_name}@{db_host}:{port}/{db_name}"
-    
-    db_engine = create_engine(conn_str)
+
+    db_engine = create_engine(conn_str, **POOL_CONFIG)
     return db_engine
 
 

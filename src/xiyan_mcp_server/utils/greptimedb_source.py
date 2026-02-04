@@ -5,6 +5,7 @@ GreptimeDB 专用数据源类
 这与 GreptimeDB 的 pg_catalog 不兼容，因此需要自定义实现。
 """
 import logging
+import threading
 from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -31,6 +32,9 @@ class GreptimeDBSource:
         # 使用 system_prefix 作为 db_id，且不设置 schema 前缀，因为表名已经包含了完整的 schema 名
         self._mschema = MSchema(db_id=self._system_prefix or self._db_name, schema=None)
         self._usable_tables = []
+        # 表列加载锁：为每个表提供独立的加载锁，避免并发重复查询
+        self._loading_locks = {}  # {full_table_name: Lock}
+        self._loading_locks_lock = threading.Lock()
         logger.info(f"GreptimeDBSource: 开始调用 init_mschema")
         self.init_mschema()
         logger.info(f"GreptimeDBSource.__init__ 完成")
@@ -79,38 +83,50 @@ class GreptimeDBSource:
         logger.info(f"init_mschema: 完成，已添加 {len(tables_with_schema)} 个表（不含列信息）")
 
     def _load_table_columns(self, schema_name: str, table_name: str):
-        """延迟加载单个表的列信息"""
+        """延迟加载单个表的列信息（线程安全）"""
         full_table_name = f"{schema_name}.{table_name}"
 
-        # 如果已经有列信息，跳过
+        # 快速路径：已加载则直接返回
         if self._mschema.tables.get(full_table_name, {}).get('fields'):
             return
 
-        logger.info(f"延迟加载表列信息: {full_table_name}")
+        # 获取或创建此表的加载锁
+        with self._loading_locks_lock:
+            if full_table_name not in self._loading_locks:
+                self._loading_locks[full_table_name] = threading.Lock()
+        table_lock = self._loading_locks[full_table_name]
 
-        # 获取列信息
-        columns = self._get_columns(schema_name, table_name)
-        for col in columns:
-            # 获取示例值
-            try:
-                examples = self._fetch_distinct_values(schema_name, table_name, col['name'], 5)
-            except:
-                examples = []
-            examples = examples_to_str(examples)
+        # 加载路径：获取锁后再次检查（双重检查锁定）
+        with table_lock:
+            # 双重检查：可能在等待锁时已被其他线程加载
+            if self._mschema.tables.get(full_table_name, {}).get('fields'):
+                return
 
-            self._mschema.add_field(
-                full_table_name,
-                col['name'],
-                field_type=col['type'],
-                primary_key=False,  # GreptimeDB 不提供主键信息
-                nullable=col.get('nullable', True),
-                default=col.get('default'),
-                autoincrement=False,
-                comment='',
-                examples=examples
-            )
+            logger.info(f"延迟加载表列信息: {full_table_name}")
 
-        logger.info(f"延迟加载完成: {full_table_name}")
+            # 获取列信息
+            columns = self._get_columns(schema_name, table_name)
+            for col in columns:
+                # 获取示例值
+                try:
+                    examples = self._fetch_distinct_values(schema_name, table_name, col['name'], 5)
+                except:
+                    examples = []
+                examples = examples_to_str(examples)
+
+                self._mschema.add_field(
+                    full_table_name,
+                    col['name'],
+                    field_type=col['type'],
+                    primary_key=False,  # GreptimeDB 不提供主键信息
+                    nullable=col.get('nullable', True),
+                    default=col.get('default'),
+                    autoincrement=False,
+                    comment='',
+                    examples=examples
+                )
+
+            logger.info(f"延迟加载完成: {full_table_name}")
 
     def _get_table_names_with_schema(self) -> List[Tuple[str, str]]:
         """获取所有匹配前缀的 schema 和表名列表"""
@@ -199,15 +215,28 @@ class GreptimeDBSource:
     def _fetch_distinct_values(self, schema_name: str, table_name: str, column_name: str, max_num: int = 5) -> List:
         """获取列的不同值示例"""
         # 验证表名和列名格式（防止SQL注入）
+        # 放宽限制：允许字母、数字、下划线、点号、连字符、空格、冒号
+        # 禁止危险字符：单引号、双引号、分号、注释符、反引号、换行符等
         import re
-        identifier_pattern = r'^[a-zA-Z_][a-zA-Z0-9_\.]*$'
-        if not re.match(identifier_pattern, table_name):
+        identifier_pattern = r'^[a-zA-Z0-9_\.\-\:\s]+$'
+        forbidden_chars = ["'", '"', ';', '--', '/*', '*/', '`', '\n', '\r', '\x00']
+
+        def is_safe_identifier(identifier: str) -> bool:
+            """检查标识符是否安全（不包含危险字符）"""
+            if not re.match(identifier_pattern, identifier):
+                return False
+            for char in forbidden_chars:
+                if char in identifier:
+                    return False
+            return True
+
+        if not is_safe_identifier(table_name):
             logger.warning(f"表名格式验证失败: '{table_name}'")
             raise ValueError(f"表名格式无效: '{table_name}'")
-        if not re.match(identifier_pattern, schema_name):
+        if not is_safe_identifier(schema_name):
             logger.warning(f"Schema名格式验证失败: '{schema_name}'")
             raise ValueError(f"Schema名格式无效: '{schema_name}'")
-        if not re.match(identifier_pattern, column_name):
+        if not is_safe_identifier(column_name):
             logger.warning(f"列名格式验证失败: '{column_name}'")
             raise ValueError(f"列名格式无效: '{column_name}'")
 

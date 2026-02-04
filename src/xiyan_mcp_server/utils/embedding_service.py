@@ -13,10 +13,15 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """
     Embedding 模型封装类
-    
+
     支持两种模式：
     1. 本地模型：使用 sentence-transformers 加载模型
-    2. API 模式：调用 ModelScope API
+    2. 本地 vLLM API (use_vllm_format=True)：调用本地 vLLM 服务
+    3. 云端 ModelScope API：自动添加 encoding_format 参数
+
+    API 模式自动检测：
+    - use_vllm_format=True → 使用本地 vLLM 格式（texts 字段）
+    - api_url 包含 "modelscope.cn" → 自动添加 encoding_format="float"
     """
     
     def __init__(self, config: dict):
@@ -142,18 +147,17 @@ class EmbeddingService:
             raise
     
     def _embed_api(self, texts: List[str]) -> List[List[float]]:
-        """使用 API 进行向量化"""
-        try:
-            from openai import OpenAI
+        """使用 API 进行向量化
 
-            client = OpenAI(
-                api_key=self.api_key,
-                base_url=self.api_url
-            )
+        支持两种 API 格式：
+        1. 本地 vLLM (use_vllm_format=True)
+        2. ModelScope 云端 API（自动添加 encoding_format 参数）
+        """
+        try:
+            import requests
 
             if self.use_vllm_format:
-                # vLLM 格式：使用 texts 字段
-                import requests
+                # 本地 vLLM 格式：使用 texts 字段
                 response = requests.post(
                     f"{self.api_url}embeddings",
                     headers={
@@ -172,13 +176,24 @@ class EmbeddingService:
                 embeddings = result.get("embeddings", [])
                 return embeddings
             else:
-                # 标准 OpenAI/ModelScope 格式
-                response = client.embeddings.create(
-                    model=self.model_name,
-                    input=texts
+                # ModelScope 云端 API：需要 encoding_format 参数
+                response = requests.post(
+                    f"{self.api_url}embeddings",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self.api_key}"
+                    },
+                    json={
+                        "model": self.model_name,
+                        "input": texts,
+                        "encoding_format": "float"  # ModelScope 要求此参数
+                    },
+                    timeout=60
                 )
-                # 提取向量
-                embeddings = [item.embedding for item in response.data]
+                response.raise_for_status()
+                result = response.json()
+                # ModelScope 响应格式: {"data": [{"embedding": [...]}]}
+                embeddings = [item["embedding"] for item in result.get("data", [])]
                 return embeddings
 
         except Exception as e:

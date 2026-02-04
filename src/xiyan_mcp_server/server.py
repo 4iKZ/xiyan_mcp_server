@@ -3,6 +3,8 @@ import logging
 import os
 import signal
 import sys
+import time
+import threading
 
 import yaml  # 添加yaml库导入
 from mcp.server import FastMCP
@@ -32,10 +34,49 @@ logging.basicConfig(
 logger = logging.getLogger("xiyan_mcp_server")
 
 
-# Handle SIGINT (Ctrl+C) and SIGTERM gracefully
+# 优雅关闭机制
+_shutting_down = False
+_shutdown_lock = threading.Lock()
+
+
+def is_shutting_down():
+    """检查服务器是否正在关闭"""
+    with _shutdown_lock:
+        return _shutting_down
+
+
 def signal_handler(sig, frame):
-    """处理退出信号，确保资源被正确释放"""
-    logger.info("正在关闭服务器...")
+    """
+    处理退出信号，优雅地关闭服务器
+
+    实现步骤：
+    1. 设置关闭标志，阻止新请求
+    2. 等待活跃请求完成（最多5秒）
+    3. 清理资源
+    4. 退出
+    """
+    global _shutting_down
+
+    with _shutdown_lock:
+        if _shutting_down:
+            # 已经在关闭中，直接退出
+            logger.warning("关闭信号已被处理，强制退出")
+            sys.exit(1)
+        _shutting_down = True
+
+    logger.info(f"收到信号 {sig}，开始优雅关闭服务器...")
+
+    # 等待活跃请求完成（最多5秒）
+    graceful_shutdown_timeout = 5
+    logger.info(f"等待 {graceful_shutdown_timeout} 秒让活跃请求完成...")
+
+    for i in range(graceful_shutdown_timeout):
+        time.sleep(1)
+        remaining = graceful_shutdown_timeout - i - 1
+        if remaining > 0:
+            logger.debug(f"剩余等待时间: {remaining} 秒")
+
+    logger.info("开始清理资源...")
 
     # 清理数据库引擎
     global _db_engine
@@ -50,7 +91,7 @@ def signal_handler(sig, frame):
     if schema_filter_enabled:
         try:
             global _redis_client
-            if '_redis_client' in globals() and _redis_client is not None:
+            if _redis_client is not None:
                 _redis_client.close()
                 logger.info("Redis 连接已关闭")
         except Exception as e:
@@ -135,40 +176,74 @@ schema_filter_enabled = schema_filter_config.get("enabled", False)
 embedding_config = global_config.get("embedding", {})
 redis_config = global_config.get("redis", {})
 
+# 全局 Redis 客户端单例（线程安全，延迟初始化）
+_redis_client = None
+_redis_client_lock = None  # 延迟初始化 threading.Lock
+
+def get_redis_client():
+    """获取全局 Redis 客户端单例（线程安全）"""
+    global _redis_client, _redis_client_lock
+    if _redis_client is None:
+        if _redis_client_lock is None:
+            import threading
+            _redis_client_lock = threading.Lock()
+        with _redis_client_lock:
+            # Double-check locking
+            if _redis_client is None:
+                try:
+                    import redis
+                    _redis_client = redis.Redis(
+                        host=redis_config.get("host", "localhost"),
+                        port=redis_config.get("port", 6379),
+                        password=redis_config.get("password") or None,
+                        decode_responses=False
+                    )
+                    _redis_client.ping()
+                    logger.info("Redis 客户端已初始化")
+                except Exception as e:
+                    logger.error(f"Redis 连接失败: {e}")
+                    raise
+    return _redis_client
+
+# 全局 Embedding 服务单例（线程安全，延迟初始化）
+_embedding_service = None
+_embedding_service_lock = None  # 延迟初始化 threading.Lock
+
+def get_embedding_service():
+    """获取全局 Embedding 服务单例（线程安全）"""
+    global _embedding_service, _embedding_service_lock
+    if _embedding_service is None:
+        if _embedding_service_lock is None:
+            import threading
+            _embedding_service_lock = threading.Lock()
+        with _embedding_service_lock:
+            # Double-check locking
+            if _embedding_service is None:
+                try:
+                    from .utils.embedding_service import EmbeddingService
+                    _embedding_service = EmbeddingService(embedding_config)
+                    logger.info(f"Embedding 模型已加载: {embedding_config.get('model', 'default')}")
+                except Exception as e:
+                    logger.error(f"Embedding 服务初始化失败: {e}")
+                    raise
+    return _embedding_service
+
+# Schema 检索器配置（延迟初始化）
+_retriever_config = {
+    "index_name": redis_config.get("index_name", "xiyan_schema"),
+    "top_k": schema_filter_config.get("top_k", 5),
+    "score_threshold": schema_filter_config.get("score_threshold", 0.6)
+}
+
 # 初始化 Schema 检索器（如果启用）
 schema_retriever = None
 _schema_retriever_lock = None  # 延迟初始化 threading.Lock
+
+# 测试 Redis 连接（仅在启用时）
 if schema_filter_enabled:
     try:
-        import redis
-        from .utils.embedding_service import EmbeddingService
-        from .utils.schema_retriever import SchemaRetriever
-        
-        # 初始化 Redis
-        redis_client = redis.Redis(
-            host=redis_config.get("host", "localhost"),
-            port=redis_config.get("port", 6379),
-            password=redis_config.get("password") or None,
-            decode_responses=False
-        )
-        redis_client.ping()
-        logger.info("Schema 过滤已启用，Redis 连接成功")
-        
-        # 初始化 Embedding 服务
-        embedding_service = EmbeddingService(embedding_config)
-        logger.info(f"Embedding 模型已加载: {embedding_config.get('model', 'default')}")
-        
-        logger.debug("正在准备 Schema 检索器配置...")
-        # Schema 检索器将在首次查询时初始化（需要 mschema）
-        _embedding_service = embedding_service
-        _redis_client = redis_client
-        _retriever_config = {
-            "index_name": redis_config.get("index_name", "xiyan_schema"),
-            "top_k": schema_filter_config.get("top_k", 5),
-            "score_threshold": schema_filter_config.get("score_threshold", 0.6)
-        }
-        logger.info("Schema 检索器配置完成")
-        
+        get_redis_client()  # 测试连接
+        logger.info("Schema 过滤已启用，Redis 连接测试成功")
     except Exception as e:
         logger.warning(f"Schema 过滤初始化失败，将使用完整 Schema: {e}")
         schema_filter_enabled = False
@@ -188,6 +263,8 @@ logger.info("正在注册资源和工具...")
     )
 )
 async def read_resource() -> str:
+    if is_shutting_down():
+        return "服务器正在关闭，暂时不接受新请求"
     db_engine = get_db_engine()
     db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
     return db_source.mschema.to_mschema()
@@ -196,6 +273,8 @@ async def read_resource() -> str:
 @mcp.resource(dialect_scheme + "://{table_name}")
 async def read_resource(table_name) -> str:
     """Read table contents."""
+    if is_shutting_down():
+        return "服务器正在关闭，暂时不接受新请求"
     try:
         db_engine = get_db_engine()
         db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
@@ -393,6 +472,10 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
     """
     global schema_retriever, _schema_retriever_lock
 
+    # 检查服务器是否正在关闭
+    if is_shutting_down():
+        return "服务器正在关闭，暂时不接受新请求"
+
     logger.info(f"Calling tool with arguments: {query}")
     try:
         db_engine = get_db_engine()
@@ -415,8 +498,8 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
                     if schema_retriever is None:
                         from .utils.schema_retriever import SchemaRetriever
                         schema_retriever = SchemaRetriever(
-                            _redis_client,
-                            _embedding_service,
+                            get_redis_client(),
+                            get_embedding_service(),
                             db_source.mschema,
                             _retriever_config,
                             db_source=db_source  # 传入 db_source 用于延迟加载
