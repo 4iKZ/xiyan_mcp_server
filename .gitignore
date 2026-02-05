@@ -9,6 +9,9 @@ docs/code_review_report.md
 __pycache__/
 *.pyc
 
+# IDE
+.idea/
+
 # Environment
 .env
 
