@@ -1,26 +1,79 @@
-# Claude-specific files
-/.trae/documents
-/.claude
-.claude/memory.txt
-.trae
-docs/code_review_report.md
-
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+virtualenv/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
 
 # IDE
 .idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# Environment
+# Environment variables
 .env
+.env.local
+.env.*.local
 
 # Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
+
+# Claude AI
+.claude/
+.trae/
+docs/code_review_report.md
+
+# Project-specific
 CLAUDE.md
 API_DOCS.md
-
-# Documentation
 README_zh.md
 
-# Configuration (contains sensitive data)
+# Configuration (sensitive data)
 src/xiyan_mcp_server/config.yml
