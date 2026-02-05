@@ -19,5 +19,8 @@ __pycache__/
 CLAUDE.md
 API_DOCS.md
 
+# Documentation
+README_zh.md
+
 # Configuration (contains sensitive data)
 src/xiyan_mcp_server/config.yml
