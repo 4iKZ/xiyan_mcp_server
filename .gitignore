@@ -11,5 +11,5 @@ __pycache__/
 .env
 
 # Logs
-xiyan_mcp.log
-2025-02-04-开发总结.md
+CLAUDE.md
+API_DOCS.md

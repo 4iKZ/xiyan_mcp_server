@@ -50,6 +50,7 @@ print("="*60)
 tests = [
     "查询 CockroachDB 的 CPU 系统使用率，显示前 3 条数据",
     "统计 CockroachDB 的 SQL 查询总数",
+    "统计数据库集群最近5min QPS的变化趋势"
 ]
 
 for q in tests:

@@ -7,7 +7,9 @@
 本项目基于 [XGenerationLab/xiyan_mcp_server](https://github.com/XGenerationLab/xiyan_mcp_server) 进行深度改造，增强了以下功能：
 
 - 支持 GreptimeDB 时序数据库
+- 支持 CockroachDB 分布式数据库
 - Schema 语义过滤与延迟加载优化
+- 灵活的 Embedding 模型配置（云端 API / 本地 vLLM）
 - 本地 vLLM 模型支持
 - 多格式输出（Markdown、JSON、CSV）
 - SQL 自动修复机制（最多 5 次重试）
@@ -16,6 +18,7 @@
 
 ### 数据库支持
 - GreptimeDB（时序数据库）
+- CockroachDB（分布式关系型数据库）
 - MySQL
 - PostgreSQL
 - SQLite
@@ -48,6 +51,8 @@ pip install -e .
 
 编辑 `src/xiyan_mcp_server/config.yml`：
 
+### 基础配置
+
 ```yaml
 model:
   name: "/share/modelscope/XiYanSQL-QwenCoder-14B-2504"
@@ -55,8 +60,8 @@ model:
   url: "http://10.0.0.8:10000/v1/"
 
 database:
-  system: "sundb"
-  dialect: "greptimedb"
+  system: "cockroach"        # 可选：greptimedb, mysql, postgresql, sqlite
+  dialect: "greptimedb"      # 数据库方言
   host: "10.0.0.8"
   port: 4003
   user: "root"
@@ -69,20 +74,50 @@ schema_filter:
   top_k: 5
   score_threshold: 0.4
 
-embedding:
-  model: "Qwen/Qwen3-Embedding-8B"
-  use_api: true
-  use_vllm_format: true
-  api_url: "http://10.0.0.8:10001/v1/"
-  api_key: "not-needed"
-  vector_dim: 4096
-
 redis:
   host: "localhost"
   port: 6379
   password: ""
   index_name: "xiyan_schema"
 ```
+
+### Embedding 配置（重要）
+
+**⚠️ 切换 embedding 模型后，必须重新生成 Redis 索引：**
+
+```bash
+python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml --rebuild
+```
+
+#### 选项 1：云端 ModelScope API（推荐）
+
+全精度模型，效果最佳：
+
+```yaml
+embedding:
+  model: "Qwen/Qwen3-Embedding-8B"
+  use_api: true
+  api_key: "your-modelscope-api-key"
+  vector_dim: 4096
+```
+
+#### 选项 2：本地 vLLM API
+
+需自行部署 embedding 模型：
+
+```yaml
+embedding:
+  model: "Qwen/Qwen3-Embedding-8B"
+  use_api: true
+  use_vllm_format: true
+  api_url: "http://localhost:10001/v1/"
+  api_key: "not-needed"
+  vector_dim: 4096
+```
+
+**注意事项：**
+- 使用 4bit 量化可能导致向量区分度下降，建议使用 FP16/BF16 量化
+- 云端 API 会自动添加 `encoding_format="float"` 参数获取全精度向量
 
 ## 启动服务
 
@@ -179,19 +214,59 @@ src/xiyan_mcp_server/
     ├── db_util.py              # 数据库连接池
     ├── llm_util.py             # LLM API 调用
     ├── schema_retriever.py     # Schema 检索
-    ├── embedding_service.py    # Embedding 服务
+    ├── embedding_service.py    # Embedding 服务（支持云端/本地）
     ├── db_source.py            # 数据库元数据
     └── greptimedb_source.py    # GreptimeDB 支持
+
+scripts/
+└── index_knowledge.py  # Schema 知识库索引工具
+
+json/                  # Schema �知��库目录
 ```
 
 ## 与原项目的主要差异
 
 1. **GreptimeDB 支持**：新增 GreptimeDB 方言和专用数据源
-2. **Schema 优化**：基于 Redis 的语义检索 + 延迟加载
-3. **本地模型**：完整支持本地 vLLM 部署
-4. **输出格式**：支持 Markdown/JSON/CSV 三种格式
-5. **错误处理**：增强 SQL 修复逻辑（5 次重试）
-6. **配置分离**：Embedding 和主模型配置分离
+2. **CockroachDB 支持**：完整支持 CockroachDB 分布式数据库
+3. **Schema 优化**：基于 Redis 的语义检索 + 延迟加载
+4. **本地模型**：完整支持本地 vLLM 部署
+5. **输出格式**：支持 Markdown/JSON/CSV 三种格式
+6. **错误处理**：增强 SQL 修复逻辑（5 次重试）
+7. **配置分离**：Embedding 和主模型配置分离
+8. **Embedding 灵活性**：支持云端 API 和本地 vLLM 两种部署方式
+
+## Schema 知识库管理
+
+### 首次索引
+
+将 `json/` 目录下的数据库 Schema 信息索引到 Redis：
+
+```bash
+python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml
+```
+
+### 重建索引
+
+⚠️ **以下情况需要重建索引：**
+
+- 切换 Embedding 模型（云端 API ↔ 本地 vLLM）
+- 更换 Embedding 模型版本
+- 修改数据库 Schema 结构
+- 调整向量维度配置
+
+```bash
+python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml --rebuild
+```
+
+### 检查 Schema
+
+```bash
+# 检查 Schema 知识库
+python check_schema.py
+
+# 检查表结构
+python check_tables.py
+```
 
 ## 测试
 

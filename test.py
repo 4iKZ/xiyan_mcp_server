@@ -104,7 +104,7 @@ def test_query(query: str, format_type: str = "markdown"):
         print(f"异常: {e}")
 
 if __name__ == "__main__":
-    query = "查询最近5分钟数据库集群各个机器的内存占用趋势情况"
+    query = "查询最近5分钟数据库连接数量变化趋势"
     
     # 测试三种格式
     print("\n" + "="*60)
