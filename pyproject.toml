@@ -1,6 +1,6 @@
 [project]
 name = "xiyan_mcp_server"
-version = "0.1.5.dev0"
+version = "0.1.5"
 description = "A Model Context Protocol (MCP) server that utilizes XiyanSQL with databases. This server enables AI assistants to list tables, read data, and execute natural language queries"
 readme = "README.md"
 requires-python = ">=3.13"
