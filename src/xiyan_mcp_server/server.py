@@ -59,9 +59,8 @@ def signal_handler(sig, frame):
 
     with _shutdown_lock:
         if _shutting_down:
-            # 已经在关闭中，直接退出
-            logger.warning("关闭信号已被处理，强制退出")
-            sys.exit(1)
+            logger.warning("关闭信号已被处理，正在等待清理完成...")
+            return  # 直接返回，让第一次信号处理完成清理
         _shutting_down = True
 
     logger.info(f"收到信号 {sig}，开始优雅关闭服务器...")
@@ -122,6 +121,41 @@ def get_yml_config():
         raise
 
 
+def validate_config(config: dict) -> None:
+    """验证配置文件的必需字段
+
+    Args:
+        config: 配置字典
+
+    Raises:
+        ValueError: 当缺少必需字段时
+    """
+    # 定义 SQLite 以外的数据库所需的必需字段
+    db_required_fields = ["dialect", "host", "port", "user", "password", "database"]
+
+    # 检查 model section
+    if "model" not in config:
+        raise ValueError("配置文件缺少必需的 section: [model]")
+
+    model_config = config["model"]
+    for field in ["name", "key", "url"]:
+        if field not in model_config or model_config[field] is None:
+            raise ValueError(f"配置文件 [model] 缺少必需字段: {field}")
+
+    # 检查 database section（SQLite 除外）
+    if "database" not in config:
+        raise ValueError("配置文件缺少必需的 section: [database]")
+
+    db_config = config["database"]
+    dialect = db_config.get("dialect", "").lower()
+
+    # SQLite 只需要 dialect 字段
+    if dialect != "sqlite":
+        for field in db_required_fields:
+            if field not in db_config or db_config[field] is None:
+                raise ValueError(f"配置文件 [database] 缺少必需字段: {field}")
+
+
 def get_xiyan_config(db_config):
     dialect = db_config.get("dialect", "mysql")
 
@@ -143,9 +177,10 @@ def get_xiyan_config(db_config):
 
 
 global_config = get_yml_config()
+validate_config(global_config)
 mcp_config = global_config.get("mcp", {})
 model_config = global_config["model"]
-global_db_config = global_config.get("database")
+global_db_config = global_config["database"]
 global_system_prefix = global_db_config.get("system", "")
 global_xiyan_db_config = get_xiyan_config(global_db_config)
 dialect = global_db_config.get("dialect", "mysql")
@@ -154,15 +189,12 @@ dialect_scheme = dialect.replace("_", "-")
 
 # 全局数据库引擎单例（避免连接池泄漏）
 _db_engine = None
-_db_engine_lock = None  # 延迟初始化 threading.Lock
+_db_engine_lock = threading.Lock()  # 立即初始化，避免竞态条件
 
 def get_db_engine():
     """获取全局数据库引擎单例，避免每次请求创建新引擎导致连接池泄漏"""
-    global _db_engine, _db_engine_lock
+    global _db_engine
     if _db_engine is None:
-        if _db_engine_lock is None:
-            import threading
-            _db_engine_lock = threading.Lock()
         with _db_engine_lock:
             # Double-check locking
             if _db_engine is None:
@@ -176,19 +208,15 @@ schema_filter_enabled = schema_filter_config.get("enabled", False)
 embedding_config = global_config.get("embedding", {})
 redis_config = global_config.get("redis", {})
 
-# 全局 Redis 客户端单例（线程安全，延迟初始化）
+# 全局 Redis 客户端单例（线程安全）
 _redis_client = None
-_redis_client_lock = None  # 延迟初始化 threading.Lock
+_redis_client_lock = threading.Lock()  # 立即初始化，避免竞态条件
 
 def get_redis_client():
     """获取全局 Redis 客户端单例（线程安全）"""
-    global _redis_client, _redis_client_lock
+    global _redis_client
     if _redis_client is None:
-        if _redis_client_lock is None:
-            import threading
-            _redis_client_lock = threading.Lock()
         with _redis_client_lock:
-            # Double-check locking
             if _redis_client is None:
                 try:
                     import redis
@@ -205,19 +233,15 @@ def get_redis_client():
                     raise
     return _redis_client
 
-# 全局 Embedding 服务单例（线程安全，延迟初始化）
+# 全局 Embedding 服务单例（线程安全）
 _embedding_service = None
-_embedding_service_lock = None  # 延迟初始化 threading.Lock
+_embedding_service_lock = threading.Lock()  # 立即初始化，避免竞态条件
 
 def get_embedding_service():
     """获取全局 Embedding 服务单例（线程安全）"""
-    global _embedding_service, _embedding_service_lock
+    global _embedding_service
     if _embedding_service is None:
-        if _embedding_service_lock is None:
-            import threading
-            _embedding_service_lock = threading.Lock()
         with _embedding_service_lock:
-            # Double-check locking
             if _embedding_service is None:
                 try:
                     from .utils.embedding_service import EmbeddingService
@@ -237,7 +261,66 @@ _retriever_config = {
 
 # 初始化 Schema 检索器（如果启用）
 schema_retriever = None
-_schema_retriever_lock = None  # 延迟初始化 threading.Lock
+_schema_retriever_lock = threading.Lock()  # 立即初始化，避免竞态条件
+
+def get_schema_retriever(db_source):
+    """获取全局 Schema 检索器单例（线程安全，避免重复初始化检查）"""
+    global schema_retriever
+    if schema_retriever is None:
+        with _schema_retriever_lock:
+            if schema_retriever is None:
+                from .utils.schema_retriever import SchemaRetriever
+                schema_retriever = SchemaRetriever(
+                    get_redis_client(),
+                    get_embedding_service(),
+                    db_source.mschema,
+                    _retriever_config,
+                    db_source=db_source
+                )
+                logger.info("Schema 检索器已初始化")
+    return schema_retriever
+
+# Schema 缓存配置
+_SCHEMA_CACHE_TTL = 600  # TTL: 10 分钟（秒）
+_schema_cache = {}  # {cache_key: (schema_str, expire_time)}
+_schema_cache_lock = threading.Lock()
+
+def _get_schema_cache_key(db_name: str, system_prefix: str) -> str:
+    """生成 Schema 缓存键"""
+    return f"{db_name}:{system_prefix}"
+
+def _is_cache_entry_valid(cache_entry, current_time: float) -> bool:
+    """检查缓存条目是否有效"""
+    if cache_entry is None:
+        return False
+    schema_str, expire_time = cache_entry
+    return current_time < expire_time
+
+def _get_schema_from_cache(cache_key: str) -> str:
+    """从缓存获取 Schema（线程安全，检查 TTL）"""
+    with _schema_cache_lock:
+        if cache_key in _schema_cache:
+            cache_entry = _schema_cache[cache_key]
+            current_time = time.time()
+
+            if _is_cache_entry_valid(cache_entry, current_time):
+                schema_str, expire_time = cache_entry
+                logger.debug(f"返回缓存的 Schema (剩余 {int(expire_time - current_time)} 秒)")
+                return schema_str
+            else:
+                # 缓存已过期，删除
+                del _schema_cache[cache_key]
+                logger.debug(f"Schema 缓存已过期: {cache_key}")
+        return None
+
+def _set_schema_to_cache(cache_key: str, schema_str: str) -> None:
+    """将 Schema 存入缓存（线程安全，设置过期时间）"""
+    current_time = time.time()
+    expire_time = current_time + _SCHEMA_CACHE_TTL
+
+    with _schema_cache_lock:
+        _schema_cache[cache_key] = (schema_str, expire_time)
+        logger.debug(f"Schema 已缓存 (TTL: {_SCHEMA_CACHE_TTL} 秒)")
 
 # 测试 Redis 连接（仅在启用时）
 if schema_filter_enabled:
@@ -262,16 +345,51 @@ logger.info("正在注册资源和工具...")
         else "/" + global_db_config.get("database", "")
     )
 )
-async def read_resource() -> str:
+def read_resource() -> str:
+    """读取数据库 Schema，支持 TTL 缓存和表数量限制"""
     if is_shutting_down():
         return "服务器正在关闭，暂时不接受新请求"
+
+    # 检查缓存（带 TTL 检查）
+    cache_key = _get_schema_cache_key(
+        global_db_config.get("database", ""),
+        global_system_prefix
+    )
+
+    # 尝试从缓存获取
+    cached_schema = _get_schema_from_cache(cache_key)
+    if cached_schema is not None:
+        return cached_schema
+
+    # 缓存未命中或已过期，生成新的 Schema
+    logger.info(f"生成新的 Schema: {cache_key}")
     db_engine = get_db_engine()
-    db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
-    return db_source.mschema.to_mschema()
+    db_source = create_db_source(
+        db_engine, dialect,
+        global_db_config.get("database", ""),
+        system_prefix=global_system_prefix
+    )
+
+    # 限制最大表数为 500
+    schema_str = db_source.mschema.to_mschema(max_tables=500)
+
+    # 添加提示信息
+    num_tables = len(db_source.mschema.tables)
+    if num_tables > 500:
+        schema_str += (
+            f"\n\n---\n"
+            f"注意：数据库共有 {num_tables} 个表，但仅显示前 500 个。"
+            f"如需完整 Schema，请使用 Schema 过滤功能筛选相关表。"
+        )
+
+    # 存入缓存（带 TTL）
+    _set_schema_to_cache(cache_key, schema_str)
+
+    return schema_str
 
 
 @mcp.resource(dialect_scheme + "://{table_name}")
-async def read_resource(table_name) -> str:
+def read_resource(table_name) -> str:
     """Read table contents."""
     if is_shutting_down():
         return "服务器正在关闭，暂时不接受新请求"
@@ -304,11 +422,18 @@ async def read_resource(table_name) -> str:
         raise RuntimeError(f"Database error: {str(e)}")
 
 
-def sql_gen_and_execute(db_env: DataBaseEnv, query: str):
+def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     """
     Transfers the input natural language question to sql query (known as Text-to-sql) and executes it on the database.
-     Args:
+
+    Args:
+        db_env: Database environment
         query: natural language to query the database. e.g. 查询在2024年每个月，卡宴的各经销商销量分别是多少
+
+    Returns:
+        dict: 包含以下键之一：
+            - 成功时: {"truncated_results": [...], "fields": [...]}
+            - 失败时: {"error": "错误消息", "error_type": "异常类型名"}
     """
 
     # db_env = context_variables.get('db_env', None)
@@ -365,7 +490,11 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str):
         return sql_res
 
     except Exception as e:
-        return str(e)
+        logger.error(f"SQL generation or execution failed: {e}", exc_info=True)
+        return {
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
 
 
 def sql_fix(
@@ -415,10 +544,10 @@ def format_result(result: dict, format_type: str = "markdown") -> str:
     """
     import json as json_module
 
-    # 解析 result 字符串为字典（如果是字符串）
-    if isinstance(result, str):
-        # 尝试从字符串中提取数据
-        return result  # 如果无法解析，直接返回原始字符串
+    # result 应该始终是 dict 类型
+    if not isinstance(result, dict):
+        logger.error(f"Unexpected result type: {type(result)}, value: {result}")
+        return f"Error: Unexpected result type {type(result).__name__}"
 
     fields = result.get("fields", [])
     rows = result.get("truncated_results", [])
@@ -470,7 +599,7 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
         query: The query in natual language
         format_type: Output format (markdown, json, csv)
     """
-    global schema_retriever, _schema_retriever_lock
+    global schema_retriever
 
     # 检查服务器是否正在关闭
     if is_shutting_down():
@@ -488,26 +617,11 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
     # Schema 过滤
     if schema_filter_enabled:
         try:
-            # 延迟初始化 Schema 检索器（线程安全）
-            if schema_retriever is None:
-                if _schema_retriever_lock is None:
-                    import threading
-                    _schema_retriever_lock = threading.Lock()
-                with _schema_retriever_lock:
-                    # Double-check locking
-                    if schema_retriever is None:
-                        from .utils.schema_retriever import SchemaRetriever
-                        schema_retriever = SchemaRetriever(
-                            get_redis_client(),
-                            get_embedding_service(),
-                            db_source.mschema,
-                            _retriever_config,
-                            db_source=db_source  # 传入 db_source 用于延迟加载
-                        )
-                        logger.info("Schema 检索器已初始化")
-            
+            # 使用封装函数获取 Schema 检索器（线程安全）
+            retriever = get_schema_retriever(db_source)
+
             # 检索相关表并构建 Sub-Schema
-            table_names, sub_schema = schema_retriever.retrieve_and_build(
+            table_names, sub_schema = retriever.retrieve_and_build(
                 query,
                 database=global_db_config.get("database"),
                 system_prefix=global_system_prefix
@@ -526,12 +640,17 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
         env = DataBaseEnv(db_source)
     
     res = sql_gen_and_execute(env, query)
-    
-    # 格式化结果
-    if isinstance(res, dict) and "truncated_results" in res:
+
+    # 检查是否为错误
+    if "error" in res:
+        return f"错误: {res['error']}"
+
+    # 格式化正常结果
+    if "truncated_results" in res:
         return format_result(res, format_type)
-    
-    return str(res)
+
+    # 不应该到达这里，但作为防御性编程
+    return f"未知响应格式: {str(res)}"
 
 
 @mcp.tool()

@@ -1,7 +1,10 @@
+import logging
 import random
 from .file_util import read_json_file, write_json_to_file, save_raw_text
 from .db_util import examples_to_str
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+
+logger = logging.getLogger(__name__)
 
 
 class MSchema:
@@ -52,9 +55,18 @@ class MSchema:
             return False
 
     def get_field_info(self, table_name: str, field_name: str) -> Dict:
+        """获取字段信息，不存在时返回空字典"""
         try:
             return self.tables[table_name]['fields'][field_name]
-        except:
+        except KeyError:
+            # 明确区分表不存在和字段不存在
+            if table_name not in self.tables:
+                logger.debug(f"表不存在: {table_name}")
+            else:
+                logger.debug(f"字段不存在: {table_name}.{field_name}")
+            return {}
+        except Exception as e:
+            logger.warning(f"获取字段信息失败 {table_name}.{field_name}: {e}")
             return {}
 
     def single_table_mschema(self, table_name: str, selected_columns: List = None,
@@ -129,11 +141,21 @@ class MSchema:
         return '\n'.join(output)
 
     def to_mschema(self, selected_tables: List = None, selected_columns: List = None,
-                   example_num=3, show_type_detail=False, shuffle=True) -> str:
+                   example_num=3, show_type_detail=False, shuffle=True,
+                   max_tables: int = None) -> str:
         """
-        convert to a MSchema string.
-        selected_tables: 默认为None，表示选择所有的表
-        selected_columns: 默认为None，表示所有列全选，格式['table_name.column_name']
+        转换为 M-Schema 字符串，支持表数量限制
+
+        Args:
+            selected_tables: 选择的表列表（None 表示所有表）
+            selected_columns: 选择的列列表（格式 ['table_name.column_name']）
+            example_num: 每列显示的示例数量
+            show_type_detail: 是否显示详细类型
+            shuffle: 是否随机打乱表顺序
+            max_tables: 最大表数量（防止 Schema 过大，默认 None=无限制）
+
+        Returns:
+            M-Schema 格式的字符串
         """
         output = []
 
@@ -143,16 +165,31 @@ class MSchema:
             selected_columns = [s.lower() for s in selected_columns]
             selected_tables = [s.split('.')[0].lower() for s in selected_columns]
 
-        # 依次处理每一个表
+        # 处理表，支持数量限制
+        table_count = 0
         for table_name, table_info in self.tables.items():
             if selected_tables is None or table_name.lower() in selected_tables:
+                # 检查表数量限制
+                if max_tables and table_count >= max_tables:
+                    logger.warning(
+                        f"Schema 表数量超过 {max_tables}，已截断。"
+                        f"考虑使用 selected_tables 参数筛选需要的表。"
+                    )
+                    break
+
                 cur_table_type = table_info.get('type', 'table')
                 column_names = list(table_info['fields'].keys())
                 if selected_columns is not None:
-                    cur_selected_columns = [c for c in column_names if f"{table_name}.{c}".lower() in selected_columns]
+                    cur_selected_columns = [
+                        c for c in column_names
+                        if f"{table_name}.{c}".lower() in selected_columns
+                    ]
                 else:
                     cur_selected_columns = selected_columns
-                output.append(self.single_table_mschema(table_name, cur_selected_columns, example_num, show_type_detail, shuffle))
+                output.append(self.single_table_mschema(
+                    table_name, cur_selected_columns, example_num, show_type_detail, shuffle
+                ))
+                table_count += 1
 
         if shuffle:
             random.shuffle(output)
@@ -171,7 +208,9 @@ class MSchema:
                     if ref_schema == self.schema:
                         output.append(f"{fk[0]}.{fk[1]}={fk[3]}.{fk[4]}")
 
-        return '\n'.join(output)
+        schema_str = '\n'.join(output)
+        logger.info(f"生成 M-Schema: {len(output)} 个表, {len(schema_str)} 字符")
+        return schema_str
 
     def dump(self):
         schema_dict = {

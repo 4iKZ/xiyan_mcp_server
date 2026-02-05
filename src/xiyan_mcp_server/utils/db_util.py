@@ -165,12 +165,13 @@ def examples_to_str(examples: list) -> list[str]:
 
 
 def sql_fetcher(db_engine: Engine, sql_query: str):
+    """执行 SQL 查询，失败时返回 None"""
     sql_query = preprocess_sql_query(sql_query)
     with db_engine.begin() as connection:
         try:
             cursor = connection.execute(text(sql_query))
             records = cursor.fetchall()
         except Exception as e:
-            print("An exception occurred during SQL execution.\n", e)
+            logger.error(f"SQL 执行失败: {sql_query[:100]}... 错误: {e}")
             records = None
         return records

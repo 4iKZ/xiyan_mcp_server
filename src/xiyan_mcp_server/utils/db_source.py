@@ -118,9 +118,20 @@ class HITLSQLDatabase(SQLDatabase):
         return self._inspector.get_pk_constraint(table_name, self._schema)['constrained_columns']
 
     def get_table_comment(self, table_name: str):
+        """获取表注释，SQLite 等不支持时返回空字符串"""
         try:
             return self._inspector.get_table_comment(table_name, self._schema)['text']
-        except:    # sqlite不支持添加注释
+        except NotImplementedError:
+            # 预期异常：数据库不支持注释（如 SQLite）
+            logger.debug(f"表注释获取不支持: {table_name}")
+            return ''
+        except (KeyError, AttributeError) as e:
+            # 预期异常：返回格式不符合预期
+            logger.debug(f"表注释格式异常: {table_name}: {e}")
+            return ''
+        except Exception as e:
+            # 非预期异常：记录警告但继续
+            logger.warning(f"获取表注释失败 {table_name}: {e}")
             return ''
 
     def default_schema_name(self) -> Optional[str]:
@@ -148,43 +159,60 @@ class HITLSQLDatabase(SQLDatabase):
                     values.append(value[0])
         return values
     
-    def fetch(self, sql_query: str):
-        sql_query = preprocess_sql_query(sql_query)
+    def fetch(self, sql_query: str, max_rows: int = 10000):
+        """
+        执行 SQL 查询，返回结果
 
-        # 添加 SQL 验证
+        Args:
+            sql_query: SQL 查询语句
+            max_rows: 最大返回行数（防止内存溢出，默认 10000）
+
+        Returns:
+            (status, records): status 为 True 时返回数据列表，False 时返回错误信息
+        """
+        sql_query = preprocess_sql_query(sql_query)
         validate_sql_query(sql_query)
         logger.debug(f"Executing SQL fetch: {sql_query}")
 
-        with self._engine.begin() as connection:
-            try:
+        try:
+            with self._engine.begin() as connection:
                 cursor = connection.execute(text(sql_query))
-                records = cursor.fetchall()
-                records = [tuple(row) for row in records]
+
+                # 使用 partitions() 分批加载，避免一次性加载所有数据
+                records = []
+                for partition in cursor.partitions(1000):  # 每批 1000 行
+                    records.extend([tuple(row) for row in partition])
+
+                    # 早期退出：如果超过最大行数，记录警告并截断
+                    if len(records) > max_rows:
+                        logger.warning(
+                            f"查询结果超过 {max_rows} 行，已截断。"
+                            f"建议使用 LIMIT 或 WHERE 子句减少数据量。"
+                        )
+                        records = records[:max_rows]
+                        break
+
                 logger.info(f"SQL fetch successful, rows: {len(records)}")
                 return True, records
-            except Exception as e:
-                logger.error(f"SQL fetch error: {e}")
-                records = str(e)
-            return False, records
+        except Exception as e:
+            logger.error(f"SQL fetch error: {e}")
+            return False, str(e)
 
     def fetch_with_column_name(self, sql_query: str):
         sql_query = preprocess_sql_query(sql_query)
-
-        # 添加 SQL 验证
         validate_sql_query(sql_query)
         logger.debug(f"Executing SQL fetch_with_column_name: {sql_query}")
 
-        with self._engine.begin() as connection:
-            try:
+        try:
+            with self._engine.begin() as connection:
                 cursor = connection.execute(text(sql_query))
                 columns = cursor.keys()
                 records = cursor.fetchall()
                 logger.info(f"SQL fetch_with_column_name successful, rows: {len(records)}")
-            except Exception as e:
-                logger.error(f"SQL fetch_with_column_name error: {e}")
-                records = None
-                columns = []
-            return records, columns
+                return records, columns
+        except Exception as e:
+            logger.error(f"SQL fetch_with_column_name error: {e}")
+            return None, []
 
     def fetch_with_error_info(self, sql_query: str) -> Tuple[List, str]:
         info = ''
@@ -199,32 +227,48 @@ class HITLSQLDatabase(SQLDatabase):
         return records, info
 
     def fetch_truncated(self, sql_query: str, max_rows: Optional[int] = None, max_str_len: int = 30) -> Dict:
+        """执行查询并截断结果，支持大数据集"""
         sql_query = preprocess_sql_query(sql_query)
-
-        # 添加 SQL 验证
         validate_sql_query(sql_query)
         logger.debug(f"Executing SQL fetch_truncated: {sql_query}")
 
-        with self._engine.begin() as connection:
-            try:
+        # 默认最大行数为 100，防止内存溢出
+        if max_rows is None:
+            max_rows = 100
+
+        try:
+            with self._engine.begin() as connection:
                 cursor = connection.execute(text(sql_query))
-                result = cursor.fetchall()
+
+                # 使用 fetchmany 分批加载，而不是 fetchall
                 truncated_results = []
-                if max_rows:
-                    result = result[:max_rows]
-                for row in result:
-                    truncated_row = tuple(
-                        self.truncate_word(column, length=max_str_len)
-                        for column in row
-                    )
-                    truncated_results.append(truncated_row)
+                batch_size = 1000
+                remaining = max_rows
+
+                while remaining > 0:
+                    batch = cursor.fetchmany(min(batch_size, remaining))
+                    if not batch:
+                        break
+
+                    for row in batch:
+                        truncated_row = tuple(
+                            self.truncate_word(column, length=max_str_len)
+                            for column in row
+                        )
+                        truncated_results.append(truncated_row)
+
+                    remaining -= len(batch)
+
+                    # 早期退出
+                    if len(truncated_results) >= max_rows:
+                        break
+
                 logger.info(f"SQL fetch_truncated successful, rows: {len(truncated_results)}")
                 return {"truncated_results": truncated_results, "fields": list(cursor.keys())}
-            except Exception as e:
-                logger.error(f"SQL fetch_truncated error: {e}")
-                # records = None
-                records = str(e)
-                return {"truncated_results": records, "fields": []}
+
+        except Exception as e:
+            logger.error(f"SQL fetch_truncated error: {e}")
+            return {"truncated_results": str(e), "fields": []}
 
     def trunc_result_to_markdown(self, sql_res: Dict) -> str:
         """
@@ -289,7 +333,12 @@ class HITLSQLDatabase(SQLDatabase):
 
                 try:
                     examples = self.fectch_distinct_values(table_name, field_name, 5)
-                except:
+                except Exception as e:
+                    # 区分可恢复和不可恢复错误
+                    if "does not exist" in str(e) or "no such table" in str(e):
+                        logger.debug(f"表不存在，跳过示例值: {table_name}.{field_name}")
+                    else:
+                        logger.warning(f"获取列示例值失败 {table_name}.{field_name}: {e}")
                     examples = []
                 examples = examples_to_str(examples)
 
@@ -320,14 +369,18 @@ class HITLSQLDatabase(SQLDatabase):
             local_metadata.drop_all(local_engine)
             local_metadata.create_all(local_engine, tables=[remote_table])
 
-            # 将数据同步到本地
+            # 将数据同步到本地（修复：显式管理 Session）
             Session = sessionmaker(bind=self._engine)
             session = Session()
-            with local_engine.begin() as local_connection:
-                data = session.query(remote_table).all()
-                columns = remote_table.columns.keys()
-                insert_data = [dict(zip(columns, d)) for d in data]
-                local_connection.execute(remote_table.insert(), insert_data)
+            try:
+                with local_engine.begin() as local_connection:
+                    data = session.query(remote_table).all()
+                    columns = remote_table.columns.keys()
+                    insert_data = [dict(zip(columns, d)) for d in data]
+                    local_connection.execute(remote_table.insert(), insert_data)
+            finally:
+                session.close()  # 显式关闭 Session
+                logger.info(f"表 {table_name} 同步完成")
 
         print("Sync complete.")
 

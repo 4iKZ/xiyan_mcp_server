@@ -6,6 +6,7 @@ GreptimeDB 专用数据源类
 """
 import logging
 import threading
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -32,9 +33,10 @@ class GreptimeDBSource:
         # 使用 system_prefix 作为 db_id，且不设置 schema 前缀，因为表名已经包含了完整的 schema 名
         self._mschema = MSchema(db_id=self._system_prefix or self._db_name, schema=None)
         self._usable_tables = []
-        # 表列加载锁：为每个表提供独立的加载锁，避免并发重复查询
-        self._loading_locks = {}  # {full_table_name: Lock}
+        # 表列加载锁：使用 OrderedDict 实现 LRU 缓存，最多保留 1000 个表的锁
+        self._loading_locks = OrderedDict()  # {full_table_name: Lock}
         self._loading_locks_lock = threading.Lock()
+        self._loading_locks_max_size = 1000  # 可配置
         logger.info(f"GreptimeDBSource: 开始调用 init_mschema")
         self.init_mschema()
         logger.info(f"GreptimeDBSource.__init__ 完成")
@@ -82,19 +84,47 @@ class GreptimeDBSource:
 
         logger.info(f"init_mschema: 完成，已添加 {len(tables_with_schema)} 个表（不含列信息）")
 
+    def _get_table_loading_lock(self, full_table_name: str) -> threading.Lock:
+        """获取表的加载锁，使用 LRU 缓存限制大小"""
+        # 快速路径：已存在则更新 LRU
+        if full_table_name in self._loading_locks:
+            with self._loading_locks_lock:
+                if full_table_name in self._loading_locks:
+                    # 移到末尾（标记为最近使用）
+                    lock = self._loading_locks.pop(full_table_name)
+                    self._loading_locks[full_table_name] = lock
+                    return lock
+
+        # 慢速路径：创建新锁
+        with self._loading_locks_lock:
+            # 双重检查
+            if full_table_name in self._loading_locks:
+                lock = self._loading_locks.pop(full_table_name)
+                self._loading_locks[full_table_name] = lock
+                return lock
+
+            # 创建新锁
+            lock = threading.Lock()
+            self._loading_locks[full_table_name] = lock
+
+            # LRU 淘汰：如果超过最大大小，移除最旧的锁
+            if len(self._loading_locks) > self._loading_locks_max_size:
+                oldest_table = next(iter(self._loading_locks))
+                del self._loading_locks[oldest_table]
+                logger.debug(f"LRU 淘汰表锁: {oldest_table}")
+
+            return lock
+
     def _load_table_columns(self, schema_name: str, table_name: str):
-        """延迟加载单个表的列信息（线程安全）"""
+        """延迟加载单个表的列信息（线程安全，使用 LRU 缓存）"""
         full_table_name = f"{schema_name}.{table_name}"
 
         # 快速路径：已加载则直接返回
         if self._mschema.tables.get(full_table_name, {}).get('fields'):
             return
 
-        # 获取或创建此表的加载锁
-        with self._loading_locks_lock:
-            if full_table_name not in self._loading_locks:
-                self._loading_locks[full_table_name] = threading.Lock()
-        table_lock = self._loading_locks[full_table_name]
+        # 获取或创建此表的加载锁（使用 LRU 缓存方法）
+        table_lock = self._get_table_loading_lock(full_table_name)
 
         # 加载路径：获取锁后再次检查（双重检查锁定）
         with table_lock:
@@ -110,7 +140,10 @@ class GreptimeDBSource:
                 # 获取示例值
                 try:
                     examples = self._fetch_distinct_values(schema_name, table_name, col['name'], 5)
-                except:
+                except Exception as e:
+                    logger.debug(
+                        f"获取列示例值失败: {schema_name}.{table_name}.{col['name']}: {e}"
+                    )
                     examples = []
                 examples = examples_to_str(examples)
 
