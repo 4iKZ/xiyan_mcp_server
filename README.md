@@ -18,6 +18,9 @@
     <a href="https://github.com/4iKZ/xiyan_mcp_server">
       <img src="https://img.shields.io/github/stars/4iKZ/xiyan_mcp_server?style=social" alt="GitHub stars">
     </a>
+    <a href="https://github.com/4iKZ/xiyan_mcp_server/releases">
+      <img src="https://img.shields.io/github/v/release/4iKZ/xiyan_mcp_server" alt="Release">
+    </a>
   </p>
 </div>
 
@@ -31,11 +34,14 @@
 - [配置](#配置)
 - [启动服务](#启动服务)
 - [API 使用](#api-使用)
+- [Docker 部署](#docker-部署)
 - [可用工具](#可用工具)
 - [项目架构](#项目架构)
 - [与原项目的主要差异](#与原项目的主要差异)
 - [Schema 知识库管理](#schema-知识库管理)
 - [测试](#测试)
+- [常见问题](#常见问题)
+- [更新日志](#更新日志)
 - [开源许可](#开源许可)
 - [引用](#引用)
 
@@ -76,13 +82,29 @@
 ## 安装
 
 ### 系统要求
-- Python 3.11+
+- Python 3.13+
 - Redis（可选，用于 Schema 过滤）
 
-### 快速安装
+### 方式 1：从源码安装
 
 ```bash
-cd /data/xiyan_mcp_server
+# 克隆仓库
+git clone https://github.com/4iKZ/xiyan_mcp_server.git
+cd xiyan_mcp_server
+
+# 安装依赖
+pip install -e .
+```
+
+### 方式 2：从 Release 安装
+
+```bash
+# 下载特定版本的源码
+wget https://github.com/4iKZ/xiyan_mcp_server/archive/refs/tags/v0.1.5.tar.gz
+tar -xzf v0.1.5.tar.gz
+cd xiyan_mcp_server-0.1.5
+
+# 安装依赖
 pip install -e .
 ```
 
@@ -160,20 +182,27 @@ embedding:
 
 ## 启动服务
 
-### 直接启动
+### 方式 1：直接启动
 
 ```bash
-PYTHONPATH=/data/xiyan_mcp_server/src python -m xiyan_mcp_server streamable-http --host 0.0.0.0 --port 8000
+# stdio 模式（默认）
+python -m xiyan_mcp_server
+
+# HTTP 模式
+python -m xiyan_mcp_server streamable-http --host 0.0.0.0 --port 8000
+
+# SSE 模式
+python -m xiyan_mcp_server sse --host 0.0.0.0 --port 8000
 ```
 
-### Systemd 服务
+### 方式 2：Systemd 服务
 
 ```bash
 systemctl start xiyan-mcp-server
 systemctl status xiyan-mcp-server
 ```
 
-### 查看日志
+### 方式 3：查看日志
 
 ```bash
 tail -f /tmp/xiyan_server.log
@@ -229,6 +258,43 @@ call_request = {
 resp = requests.post(base_url, headers=headers, json=call_request, timeout=300)
 ```
 
+## Docker 部署
+
+### 方式 1：使用 Docker 命令
+
+```bash
+# 构建镜像
+docker build -t xiyan-mcp-server .
+
+# 运行容器（stdio 模式）
+docker run -v $(pwd)/src/xiyan_mcp_server/config.yml:/app/src/xiyan_mcp_server/config.yml \
+           xiyan-mcp-server
+
+# 运行容器（HTTP 模式）
+docker run -p 8000:8000 \
+           -v $(pwd)/src/xiyan_mcp_server/config.yml:/app/src/xiyan_mcp_server/config.yml \
+           xiyan-mcp-server \
+           python -m xiyan_mcp_server streamable-http --host 0.0.0.0
+```
+
+### 方式 2：使用 Docker Compose（推荐）
+
+```bash
+# 启动服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f xiyan-mcp-server
+
+# 停止服务
+docker-compose down
+```
+
+**提示**：编辑 `docker-compose.yml` 可以：
+- 切换传输模式（stdio/HTTP/SSE）
+- 添加 Redis 和 GreptimeDB 依赖服务
+- 配置环境变量
+
 ## 可用工具
 
 ### get_data
@@ -249,6 +315,7 @@ src/xiyan_mcp_server/
 ├── server.py           # MCP 服务入口
 ├── database_env.py     # 数据库环境封装
 ├── config.yml          # 配置文件
+├── config.example.yml  # 配置文件模板
 └── utils/
     ├── db_util.py              # 数据库连接池
     ├── llm_util.py             # LLM API 调用
@@ -320,6 +387,53 @@ python test_natural_language_queries.py
 python test_cockroachdb.py
 ```
 
+## 常见问题
+
+### 1. Python 版本要求
+
+本项目需要 Python 3.13 或更高版本。
+
+### 2. Redis 连接失败
+
+确保 Redis 服务正在运行：
+
+```bash
+# 检查 Redis 状态
+systemctl status redis
+
+# 启动 Redis
+systemctl start redis
+```
+
+### 3. Embedding 模型切换
+
+切换 embedding 模型后，必须重新生成 Redis 索引，否则会影响检索效果。
+
+### 4. Docker 容器无法访问数据库
+
+确保容器网络可以访问数据库服务，可以使用 `docker network` 或 `--network host` 模式。
+
+## 更新日志
+
+### v0.1.5 (2025-02-05) - Beta
+
+**新增功能**
+- 支持 GreptimeDB 时序数据库
+- 支持 CockroachDB 分布式数据库
+- Schema 语义过滤与延迟加载优化
+- 数据脱敏处理
+
+**优化改进**
+- 修复 Async 函数阻塞问题
+- 完善 .gitignore 配置
+- 更新 Python 版本要求到 3.13
+- 优化依赖版本管理
+
+**Docker 支持**
+- 重写 Dockerfile，支持 Python 3.13
+- 添加 .dockerignore 文件
+- 新增 docker-compose.yml 配置
+
 ## 开源许可
 
 本项目基于 Apache 2.0 许可证开源。
@@ -332,7 +446,7 @@ python test_cockroachdb.py
 
 - XGenerationLab
 - ahmedmustahid
-- YifuLiuL
+- YifuLiu-L
 - eltociear
 - lwsinclair
 - Matvey-Kuk
