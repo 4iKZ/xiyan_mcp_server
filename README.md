@@ -13,10 +13,10 @@
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0">
     </a>
     <a href="https://www.python.org/">
-      <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+">
+      <img src="https://img.shields.io/badge/Python-3.13+-blue.svg" alt="Python 3.13+">
     </a>
-    <a href="https://github.com/XGenerationLab/xiyan_mcp_server">
-      <img src="https://img.shields.io/github/stars/XGenerationLab/xiyan_mcp_server?style=social" alt="GitHub stars">
+    <a href="https://github.com/4iKZ/xiyan_mcp_server">
+      <img src="https://img.shields.io/github/stars/4iKZ/xiyan_mcp_server?style=social" alt="GitHub stars">
     </a>
   </p>
 </div>
