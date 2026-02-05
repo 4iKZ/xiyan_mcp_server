@@ -3,21 +3,22 @@ name = "xiyan_mcp_server"
 version = "0.1.5.dev0"
 description = "A Model Context Protocol (MCP) server that utilizes XiyanSQL with databases. This server enables AI assistants to list tables, read data, and execute natural language queries"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "mcp>=1.0.0",
     "mysql-connector-python>=9.1.0",
-    "llama_index",
-    "sqlalchemy",
-    "pymysql",
+    "llama-index>=0.14.0",
+    "sqlalchemy>=1.4.0",
+    "pymysql>=1.0.0",
     "redis>=5.0.0",
     "sentence-transformers>=2.2.0",
-    "numpy",
-    "pyyaml",
-    "modelscope",
-    "addict",
-    "datasets",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+    "modelscope>=1.0.0",
+    "addict>=2.0.0",
+    "datasets>=2.0.0",
     "sqlparse>=0.4.4",
+    "greptimedb-sqlalchemy>=0.1.0",
 ]
 [[project.authors]]
 name = "Zhiling Luo"
