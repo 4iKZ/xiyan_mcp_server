@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  xiyan-mcp-server:
+    build: .
+    container_name: xiyan-mcp-server
+    # 使用 stdio 模式（默认）
+    stdin_open: true
+    tty: true
+
+    # 如果需要使用 HTTP 模式，取消下面的注释
+    # ports:
+    #   - "8000:8000"
+    # command: ["python", "-m", "xiyan_mcp_server", "streamable-http", "--host", "0.0.0.0"]
+
+    # 挂载配置文件
+    volumes:
+      - ./src/xiyan_mcp_server/config.yml:/app/src/xiyan_mcp_server/config.yml:ro
+
+    # 环境变量（可选）
+    environment:
+      - PYTHONUNBUFFERED=1
+      # 如果需要使用 HF_ENDPOINT，取消下面的注释
+      # - HF_ENDPOINT=https://hf-mirror.com
+
+    # 如果需要依赖其他服务（如 Redis、数据库），可以在这里添加
+    # depends_on:
+    #   - redis
+    #   - greptimedb
+
+    # restart: unless-stopped
+
+  # Redis 服务（可选，如果需要）
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: xiyan-redis
+  #   ports:
+  #     - "6379:6379"
+  #   restart: unless-stopped
+
+  # GreptimeDB 服务（可选，如果需要）
+  # greptimedb:
+  #   image: greptimedb/greptimedb:latest
+  #   container_name: xiyan-greptimedb
+  #   ports:
+  #     - "4000:4000"
+  #     - "4001:4001"
+  #   volumes:
+  #     - greptimedb-data:/data
+  #   command: >
+  #     --http-addr 0.0.0.0:4000
+  #     --mysql-addr 0.0.0.0:4001
+  #   restart: unless-stopped
+
+# volumes:
+#   greptimedb-data:

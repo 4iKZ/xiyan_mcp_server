@@ -1,0 +1,65 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info
+dist
+build
+.eggs
+lib
+lib64
+parts
+sdist
+venv
+ENV
+env
+.venv
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# Documentation
+README.md
+README_zh.md
+API_DOCS.md
+CLAUDE.md
+docs/
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+.tox
+.nox
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
+
+# Claude AI
+.claude
+.trae
+
+# Sensitive data
+src/xiyan_mcp_server/config.yml
+
+# Misc
+*.md
+!README.md
