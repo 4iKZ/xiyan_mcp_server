@@ -36,7 +36,7 @@ XiYan MCP Server 是一个基于 Model Context Protocol (MCP) 的自然语言查
 - **正确的提交格式**:
   ```bash
   git commit -m "feat: 描述"
-  # ❌ 错误：git commit -m "feat: 描述" -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+  # 错误：git commit -m "feat: 描述" -m "Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
   ```
 
 ## 项目架构

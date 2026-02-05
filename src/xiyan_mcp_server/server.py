@@ -104,6 +104,33 @@ signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 
+def _expand_env_vars(obj):
+    """
+    递归展开配置中的环境变量
+
+    支持格式：
+    - ${VAR} - 必需的环境变量
+    - ${VAR:-default} - 带默认值的环境变量
+    """
+    import re
+
+    if isinstance(obj, dict):
+        return {k: _expand_env_vars(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_expand_env_vars(item) for item in obj]
+    elif isinstance(obj, str):
+        # 匹配 ${VAR} 或 ${VAR:-default} 格式
+        pattern = r'\$\{([^:}]+)(?::-([^}]*))?\}'
+
+        def replace_env_var(match):
+            var_name = match.group(1)
+            default_value = match.group(2) if match.group(2) is not None else ""
+            return os.environ.get(var_name, default_value)
+
+        return re.sub(pattern, replace_env_var, obj)
+    else:
+        return obj
+
 def get_yml_config():
     config_path = os.getenv(
         "YML", os.path.join(os.path.dirname(__file__), "config.yml")
@@ -112,6 +139,8 @@ def get_yml_config():
     try:
         with open(config_path, "r", encoding="utf-8") as file:
             config = yaml.safe_load(file)
+        # 展开环境变量
+        config = _expand_env_vars(config)
         return config
     except FileNotFoundError:
         logger.error(f"Configuration file {config_path} not found.")

@@ -1,0 +1,65 @@
+model:
+  # 使用本地 vLLM 模型（14B）
+  name: "/path/to/XiYanSQL-QwenCoder-14B-2504"
+  key: "not-needed"  # 本地模型不需要 API key
+  url: "http://localhost:10000/v1/"
+
+  # 使用云端模型（32B，需要 API key）
+  #name: "XGenerationLab/XiYanSQL-QwenCoder-32B-2504"
+  #key: "YOUR_MODELSCOPE_API_KEY"
+  #url: "https://api-inference.modelscope.cn/v1/"
+
+database:
+  system: "cockroach"
+  dialect: "greptimedb"
+  host: "localhost"
+  port: 4003
+  user: "root"
+  password: ""
+  database: "public"
+
+# Schema 过滤配置
+schema_filter:
+  enabled: true                   
+  knowledge_dir: "json"             # 知识库目录
+  top_k: 5                          # 检索返回表数量
+  score_threshold: 0.4              # 相似度阈值
+
+# Embedding 模型配置
+# 重要：切换 embedding 模型后，必须重新生成 Redis 索引！
+#    python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml --rebuild
+#
+# 支持的配置模式：
+# 1. 云端 ModelScope API：全精度，效果好（推荐）
+#    - use_api: true
+#    - api_url: 默认 https://api-inference.modelscope.cn/v1/ (可省略)
+#    - api_key: 你的 ModelScope API key
+#    - 代码会自动添加 encoding_format="float" 参数
+#
+# 2. 本地 vLLM API：需要本地部署 embedding 模型
+#    - use_api: true
+#    - use_vllm_format: true
+#    - api_url: 本地 vLLM 服务地址
+#    - 注意：4bit 量化可能导致区分度下降，建议使用 FP16/BF16
+embedding:
+  # ========== 选项 1：云端 ModelScope API（推荐）==========
+  model: "Qwen/Qwen3-Embedding-8B"
+  use_api: true
+  api_key: ${MODELSCOPE_API_KEY:-"YOUR_MODELSCOPE_API_KEY"}
+  vector_dim: 4096
+
+  # ========== 选项 2：本地 vLLM API（需要自行部署）==========
+  #model: "Qwen/Qwen3-Embedding-8B"
+  #use_api: true
+  #use_vllm_format: true             # 启用 vLLM 格式
+  #api_url: "http://localhost:10001/v1/"
+  #api_key: "not-needed"
+  #vector_dim: 4096
+  # 注意：如果使用 4bit 量化，可能导致区分度下降！建议使用 FP16/BF16 量化
+
+# Redis 配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  index_name: "xiyan_schema"

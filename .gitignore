@@ -2,6 +2,8 @@
 /.trae/documents
 /.claude
 .claude/memory.txt
+.trae
+docs/code_review_report.md
 
 # Python
 __pycache__/
@@ -13,3 +15,6 @@ __pycache__/
 # Logs
 CLAUDE.md
 API_DOCS.md
+
+# Configuration (contains sensitive data)
+src/xiyan_mcp_server/config.yml
