@@ -1,6 +1,45 @@
-# XiYan MCP Server
+<div align="center">
+  <img src="https://raw.githubusercontent.com/XGenerationLab/XiYan-SQL/main/xiyanGBI.png" height="80" alt="XiYan Logo">
+  <h1>XiYan MCP Server</h1>
+  <p>
+    <b>基于阿里 XiYanSQL 框架改造的 Model Context Protocol (MCP) 服务器</b>
+  </p>
+  <p>
+    支持通过自然语言查询 GreptimeDB、CockroachDB、MySQL、PostgreSQL 等数据库
+  </p>
 
-基于阿里 XiYanSQL 框架改造的 Model Context Protocol (MCP) 服务器，支持通过自然语言查询时序数据库和关系型数据库。
+  <p>
+    <a href="https://opensource.org/licenses/Apache-2.0">
+      <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0">
+    </a>
+    <a href="https://www.python.org/">
+      <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+">
+    </a>
+    <a href="https://github.com/XGenerationLab/xiyan_mcp_server">
+      <img src="https://img.shields.io/github/stars/XGenerationLab/xiyan_mcp_server?style=social" alt="GitHub stars">
+    </a>
+  </p>
+</div>
+
+---
+
+## 目录
+
+- [项目概述](#项目概述)
+- [核心特性](#核心特性)
+- [安装](#安装)
+- [配置](#配置)
+- [启动服务](#启动服务)
+- [API 使用](#api-使用)
+- [可用工具](#可用工具)
+- [项目架构](#项目架构)
+- [与原项目的主要差异](#与原项目的主要差异)
+- [Schema 知识库管理](#schema-知识库管理)
+- [测试](#测试)
+- [开源许可](#开源许可)
+- [引用](#引用)
+
+---
 
 ## 项目概述
 
@@ -17,16 +56,16 @@
 ## 核心特性
 
 ### 数据库支持
-- GreptimeDB（时序数据库）
-- CockroachDB（分布式关系型数据库）
-- MySQL
-- PostgreSQL
-- SQLite
+- **GreptimeDB**（时序数据库）
+- **CockroachDB**（分布式关系型数据库）
+- **MySQL**
+- **PostgreSQL**
+- **SQLite**
 
 ### 模型支持
-- 通用 LLMs（GPT、Qwen-Max 等）
-- XiYanSQL-QwenCoder 系列模型
-- 本地 vLLM 部署模型
+- **通用 LLMs**（GPT、Qwen-Max 等）
+- **XiYanSQL-QwenCoder** 系列模型
+- **本地 vLLM** 部署模型
 
 ### 性能优化
 - Redis 语义 Schema 检索
@@ -83,7 +122,7 @@ redis:
 
 ### Embedding 配置（重要）
 
-**⚠️ 切换 embedding 模型后，必须重新生成 Redis 索引：**
+**注意：切换 embedding 模型后，必须重新生成 Redis 索引：**
 
 ```bash
 python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml --rebuild
@@ -221,7 +260,7 @@ src/xiyan_mcp_server/
 scripts/
 └── index_knowledge.py  # Schema 知识库索引工具
 
-json/                  # Schema �知��库目录
+json/                   # Schema 知识库目录
 ```
 
 ## 与原项目的主要差异
@@ -247,7 +286,7 @@ python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml
 
 ### 重建索引
 
-⚠️ **以下情况需要重建索引：**
+**注意：以下情况需要重建索引：**
 
 - 切换 Embedding 模型（云端 API ↔ 本地 vLLM）
 - 更换 Embedding 模型版本
