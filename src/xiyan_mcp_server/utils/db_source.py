@@ -232,9 +232,9 @@ class HITLSQLDatabase(SQLDatabase):
         validate_sql_query(sql_query)
         logger.debug(f"Executing SQL fetch_truncated: {sql_query}")
 
-        # 默认最大行数为 100，防止内存溢出
+        # 默认最大行数为 50000，防止内存溢出
         if max_rows is None:
-            max_rows = 100
+            max_rows = 50000
 
         try:
             with self._engine.begin() as connection:

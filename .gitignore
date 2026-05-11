@@ -77,3 +77,17 @@ README_zh.md
 
 # Configuration (sensitive data)
 src/xiyan_mcp_server/config.yml
+
+#docker
+docker_images_tar/
+
+# Query results (runtime output)
+query_results/
+query_results_hdfs/
+query_results_parquet/
+
+# Debug scripts
+debug_parquet.py
+
+# Wiki submodule
+xiyan_mcp_server.wiki/

@@ -7,6 +7,8 @@ import time
 import threading
 
 import yaml  # 添加yaml库导入
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+
 from mcp.server import FastMCP
 from mcp.types import TextContent
 
@@ -15,6 +17,7 @@ from .utils.db_config import DBConfig
 from .utils.db_source import HITLSQLDatabase
 from .utils.db_util import init_db_conn
 from .utils.file_util import extract_sql_from_qwen
+from .utils.hdfs_util import HDFSUploader, convert_to_parquet_and_upload
 from .utils.llm_util import call_openai_sdk
 
 
@@ -237,6 +240,10 @@ schema_filter_enabled = schema_filter_config.get("enabled", False)
 embedding_config = global_config.get("embedding", {})
 redis_config = global_config.get("redis", {})
 
+# HDFS 配置
+hdfs_config = global_config.get("hdfs", {})
+hdfs_enabled = hdfs_config.get("enabled", False)
+
 # 全局 Redis 客户端单例（线程安全）
 _redis_client = None
 _redis_client_lock = threading.Lock()  # 立即初始化，避免竞态条件
@@ -280,6 +287,24 @@ def get_embedding_service():
                     logger.error(f"Embedding 服务初始化失败: {e}")
                     raise
     return _embedding_service
+
+# 全局 HDFS 上传器单例（线程安全）
+_hdfs_uploader = None
+_hdfs_uploader_lock = threading.Lock()
+
+def get_hdfs_uploader():
+    """获取全局 HDFS 上传器单例（线程安全）"""
+    global _hdfs_uploader
+    if _hdfs_uploader is None:
+        with _hdfs_uploader_lock:
+            if _hdfs_uploader is None:
+                try:
+                    _hdfs_uploader = HDFSUploader(hdfs_config)
+                    logger.info(f"HDFS 上传器已初始化: {hdfs_config.get('remote_host')}")
+                except Exception as e:
+                    logger.error(f"HDFS 上传器初始化失败: {e}")
+                    raise
+    return _hdfs_uploader
 
 # Schema 检索器配置（延迟初始化）
 _retriever_config = {
@@ -513,7 +538,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
             if not status:
                 logger.error(f"SQL fix failed after 5 attempts. Last error: {res}")
 
-        sql_res = db_env.database.fetch_truncated(sql_query, max_rows=100)
+        sql_res = db_env.database.fetch_truncated(sql_query, max_rows=50000)
         logger.info(f"SQL result count: {len(sql_res.get('truncated_results', []))}")
         # 返回原始字典，让调用方根据 format 参数格式化
         return sql_res
@@ -695,7 +720,239 @@ def get_data(query: str, format: str = "markdown") -> list[TextContent]:
     return [TextContent(type="text", text=res)]
 
 
+def extract_hdfs_path_from_query(query: str) -> str:
+    """从自然语言查询中提取 HDFS 存储路径
+
+    支持中文自然语言描述，LLM 会自动识别以下意图：
+    - 无路径描述 → 返回空字符串（使用默认时间戳路径）
+    - 仅文件名 → 如 "命名为my_report" → 返回 "my_report"
+    - 仅目录 → 如 "上传到test_batch目录" → 返回 "test_batch/"
+    - 完整路径 → 如 "保存到project/daily_report" → 返回 "project/daily_report"
+
+    Args:
+        query: 用户自然语言查询
+
+    Returns:
+        提取的 HDFS 路径字符串，如果未检测到路径意图则返回空字符串
+    """
+    import re as _re
+
+    prompt = (
+        "从用户查询中提取HDFS存储路径信息。\n"
+        "\n"
+        "输出格式（严格遵守，只输出路径本身，不要任何额外文字）：\n"
+        "- 未指定路径 → 输出: NONE\n"
+        "- 仅指定文件名 → 输出文件名（无/）\n"
+        "- 仅指定目录 → 输出目录名加/结尾\n"
+        "- 指定完整路径 → 输出目录/文件名\n"
+        "\n"
+        "示例：\n"
+        "查询: \"查询数据并上传到HDFS\" → NONE\n"
+        "查询: \"查询数据，命名为my_report上传\" → my_report\n"
+        "查询: \"查询数据，上传到backup目录\" → backup/\n"
+        "查询: \"查询数据，保存到proj/daily_report\" → proj/daily_report\n"
+        "\n"
+        "用户查询: " + query
+    )
+
+    def _parse_response(raw: str) -> str:
+        """从 LLM 原始响应中提取路径"""
+        if not raw:
+            return ""
+        # 拆分为行，从最后一行开始找有效内容
+        lines = [ln.strip() for ln in raw.strip().split("\n")]
+        for line in reversed(lines):
+            if not line:
+                continue
+            # 去掉引号包裹
+            line = line.strip("\"'`「」『』")
+            # 去掉 markdown 代码块标记
+            line = _re.sub(r'^```\w*', '', line)
+            line = _re.sub(r'```$', '', line)
+            # 去掉可能的前缀（如 "输出:"、"路径:"、"path:" 等）
+            line = _re.sub(r'^(输出|路径|path|result)[：:]\s*', '', line, flags=_re.IGNORECASE)
+            line = line.strip()
+            if not line:
+                continue
+            if line.upper() in ("NONE", "NULL", "无", "默认", "空", "无路径"):
+                return ""
+            # 找到有效内容
+            return line
+        return ""
+
+    try:
+        messages = [
+            {"role": "user", "content": prompt},
+        ]
+        param = {
+            "model": model_config["name"],
+            "messages": messages,
+            "key": model_config["key"],
+            "url": model_config["url"],
+        }
+        response = call_openai_sdk(**param)
+        raw = response.choices[0].message.content
+        logger.info(f"HDFS路径提取 LLM 原始响应: {repr(raw)}")
+
+        content = _parse_response(raw)
+        logger.info(f"HDFS路径提取 解析结果: {repr(content)}")
+
+        if not content:
+            return ""
+
+        # 路径安全过滤
+        content = HDFSUploader._sanitize_path(content)
+        return content
+    except Exception as e:
+        logger.warning(f"提取 HDFS 路径失败（将使用默认路径）: {e}")
+        return ""
+
+
+def _strip_path_clauses(query: str) -> str:
+    """从查询中剥离路径/存储相关的描述，保留纯数据查询部分用于 SQL 生成
+
+    避免"存储到xxx路径下"、"命名为xxx上传"等描述被 LLM 误解析为表名或查询条件。
+    """
+    import re as _re
+
+    path_keywords = [
+        '上传', 'HDFS', 'hdfs', '导出', '保存', '存储', '命名', '文件名',
+        '目录', '文件夹', '路径', '存放', '写入', '写出', '放在',
+    ]
+    data_keywords = ['查询', '查', '表格', '表', '数据', '前', '记录', '帮我']
+
+    clauses = _re.split(r'[，,；;]', query)
+    kept = []
+    for clause in clauses:
+        clause = clause.strip()
+        if not clause:
+            continue
+        is_path = any(kw in clause for kw in path_keywords)
+        has_data = any(kw in clause for kw in data_keywords)
+        if is_path and not has_data:
+            continue
+        kept.append(clause)
+
+    result = '，'.join(kept)
+    return result if result else query
+
+
+@mcp.tool()
+def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = "") -> list[TextContent]:
+    """Execute natural language query and upload results to HDFS in parquet format
+
+    This tool performs the following steps:
+    1. Translates natural language to SQL using LLM
+    2. Executes the SQL query on the database
+    3. Converts results to Parquet format
+    4. Uploads the Parquet file to HDFS
+    5. Returns the HDFS file path
+
+    Args:
+        query: The query in natural language. Can include HDFS path descriptions like:
+            - "查询xxx的前10条数据，上传到HDFS" (default path)
+            - "查询xxx的前10条数据，命名为my_report上传到HDFS" (custom filename)
+            - "查询xxx的前10条数据，上传到HDFS的test_batch目录下" (custom dir)
+            - "查询xxx的前10条数据，保存到project/report" (full path)
+        session_id: Optional session ID for file naming (ignored if hdfs_path is provided)
+        hdfs_path: Custom HDFS storage path. Supports:
+            - Empty (default): auto-generate timestamp-based directory and filename
+            - "filename": use as filename under timestamp directory
+              e.g. "my_report" -> {root}/{ts}_batch_001/parquet/my_report.parquet
+            - "dir/": trailing slash means directory, filename auto-generated
+              e.g. "project_a/" -> {root}/project_a/{ts}.parquet
+            - "dir/filename": full path with filename
+              e.g. "project/report" -> {root}/project/report.parquet
+
+    Returns:
+        HDFS path where the parquet file is stored (e.g., "/user_custom_data/20250415_143022_batch_001/parquet/result.parquet")
+
+    Raises:
+        RuntimeError: If HDFS is not enabled or upload fails
+    """
+    if not hdfs_enabled:
+        return [TextContent(
+            type="text",
+            text="错误: HDFS 功能未启用，请在配置文件中设置 hdfs.enabled = true"
+        )]
+
+    if is_shutting_down():
+        return [TextContent(type="text", text="服务器正在关闭，暂时不接受新请求")]
+
+    logger.info(f"HDFS Upload Query: {query}, hdfs_path: {hdfs_path}")
+
+    # 如果没有显式提供 hdfs_path，尝试从自然语言查询中提取
+    sql_query = query  # 默认用于 SQL 生成
+    if not hdfs_path:
+        extracted_path = extract_hdfs_path_from_query(query)
+        if extracted_path:
+            hdfs_path = extracted_path
+            logger.info(f"从自然语言查询中提取到 HDFS 路径: {hdfs_path}")
+            # 从 query 中剥离路径描述，避免干扰 SQL 生成
+            sql_query = _strip_path_clauses(query)
+            logger.info(f"剥离路径后的查询: {sql_query[:120]}")
+
+    try:
+        # 初始化数据库连接
+        db_engine = get_db_engine()
+        db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
+    except Exception as e:
+        logger.error(f"数据库连接失败: {e}")
+        return [TextContent(type="text", text=f"数据库连接失败: {str(e)}")]
+
+    try:
+        # 创建数据库环境
+        env = DataBaseEnv(db_source)
+
+        # Schema 过滤（如果启用）
+        if schema_filter_enabled:
+            try:
+                retriever = get_schema_retriever(db_source)
+                table_names, sub_schema = retriever.retrieve_and_build(
+                    query,
+                    database=global_db_config.get("database"),
+                    system_prefix=global_system_prefix
+                )
+                logger.info(f"Schema 过滤：检索到 {len(table_names)} 个表: {table_names}")
+                env.mschema_str = sub_schema
+            except Exception as e:
+                logger.warning(f"Schema 过滤失败，使用完整 Schema: {e}")
+
+        # 执行 SQL 查询（使用剥离路径后的查询文本）
+        res = sql_gen_and_execute(env, sql_query)
+
+        # 检查是否为错误
+        if "error" in res:
+            logger.error(f"SQL 执行失败: {res['error']}")
+            return [TextContent(type="text", text=f"SQL 执行失败: {res['error']}")]
+
+        # 转换为 Parquet 并上传到 HDFS
+        uploader = get_hdfs_uploader()
+        hdfs_result_path = convert_to_parquet_and_upload(
+            res,
+            uploader,
+            session_id=session_id if session_id else None,
+            hdfs_path=hdfs_path if hdfs_path else None
+        )
+
+        logger.info(f"数据已上传到 HDFS: {hdfs_result_path}")
+
+        return [TextContent(
+            type="text",
+            text=f"数据已成功上传到 HDFS: {hdfs_result_path}"
+        )]
+
+    except ValueError as e:
+        logger.error(f"HDFS 路径验证失败: {e}")
+        return [TextContent(type="text", text=f"HDFS 路径错误: {str(e)}")]
+    except Exception as e:
+        logger.error(f"HDFS 上传失败: {e}", exc_info=True)
+        return [TextContent(type="text", text=f"HDFS 上传失败: {str(e)}")]
+
+
 def main():
+    import uvicorn
+
     parser = argparse.ArgumentParser(description="Run MCP server.")
     parser.add_argument(
         "transport",
@@ -716,8 +973,34 @@ def main():
     if args.transport == "streamable-http":
         mcp.settings.port = args.port
         mcp.settings.host = args.host
+        # 禁用 DNS rebinding protection，否则 MCP SDK 的 TransportSecurityMiddleware
+        # 会拒绝来自 Docker 网络的请求（如 host.docker.internal）
+        mcp.settings.transport_security = None
         logger.info(f"MCP server running at {args.host}/{args.port}")
-        mcp.run(transport="streamable-http")
+
+        # 获取原始 Starlette app 并添加 TrustedHostMiddleware
+        # 解决 Docker 网络环境下的 "Invalid Host header" 问题
+        app = mcp.streamable_http_app()
+
+        # 添加 TrustedHostMiddleware 允许所有 Host 头
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+
+        config = uvicorn.Config(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level="info",
+        )
+        server = uvicorn.Server(config)
+        import anyio
+        anyio.run(server.serve)
+
+    elif args.transport == "sse":
+        mcp.settings.port = args.port
+        mcp.settings.host = args.host
+        logger.info(f"MCP server running at {args.host}/{args.port}")
+        # SSE 使用 mcp.run() 的内置支持
+        mcp.run(transport="sse")
     else:
         mcp.run(transport=args.transport)
 

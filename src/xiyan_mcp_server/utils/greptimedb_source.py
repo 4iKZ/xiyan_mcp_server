@@ -325,6 +325,10 @@ class GreptimeDBSource:
         # 添加 SQL 验证
         validate_sql_query(sql_query)
 
+        # 默认最大行数为 50000，防止内存溢出
+        if max_rows is None:
+            max_rows = 50000
+
         with self._engine.begin() as conn:
             try:
                 cursor = conn.execute(text(sql_query))
