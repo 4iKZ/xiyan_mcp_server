@@ -1,0 +1,256 @@
+{"id": 1, "query": "查询表 range_snapshots_send_queue 中指标值的 P50、P95、P99 分位数", "level": 2, "category": "complex_aggregation"}
+{"id": 2, "query": "统计表 range_snapshots_send_queue 中指标值的百分位分布", "level": 2, "category": "complex_aggregation"}
+{"id": 3, "query": "查询表 changefeed_filtered_messages_total 中指标值的 P50、P95、P99 分位数", "level": 2, "category": "complex_aggregation"}
+{"id": 4, "query": "统计表 changefeed_filtered_messages_total 中指标值的百分位分布", "level": 2, "category": "complex_aggregation"}
+{"id": 5, "query": "查询表 capacity_available 中指标值的 P50、P95、P99 分位数", "level": 2, "category": "complex_aggregation"}
+{"id": 6, "query": "统计表 capacity_available 中指标值的百分位分布", "level": 2, "category": "complex_aggregation"}
+{"id": 7, "query": "查询表 cloud_writers_opened_total 中指标值的 P50、P95、P99 分位数", "level": 2, "category": "complex_aggregation"}
+{"id": 8, "query": "统计表 cloud_writers_opened_total 中指标值的百分位分布", "level": 2, "category": "complex_aggregation"}
+{"id": 9, "query": "查询表 cloud_listing_results_total 中指标值的 P50、P95、P99 分位数", "level": 2, "category": "complex_aggregation"}
+{"id": 10, "query": "统计表 cloud_listing_results_total 中指标值的百分位分布", "level": 2, "category": "complex_aggregation"}
+{"id": 11, "query": "查询表 clock_offset_medianabsdevnanos 中指标值的 P50、P95、P99 分位数", "level": 2, "category": "complex_aggregation"}
+{"id": 12, "query": "统计表 clock_offset_medianabsdevnanos 中指标值的百分位分布", "level": 2, "category": "complex_aggregation"}
+{"id": 13, "query": "查询表 changefeed_lagging_ranges 中指标值的 P50、P95、P99 分位数", "level": 2, "category": "complex_aggregation"}
+{"id": 14, "query": "统计表 changefeed_lagging_ranges 中指标值的百分位分布", "level": 2, "category": "complex_aggregation"}
+{"id": 15, "query": "查询表 changefeed_error_retries_total 中指标值的 P50、P95、P99 分位数", "level": 2, "category": "complex_aggregation"}
+{"id": 16, "query": "统计表 changefeed_error_retries_total 中指标值的百分位分布", "level": 2, "category": "complex_aggregation"}
+{"id": 17, "query": "查询表 rebalancing_requestspersecond 中 instance=172.19.19.130:8080 的记录，按每 30分钟 统计指标的 平均值", "level": 2, "category": "complex_aggregation"}
+{"id": 18, "query": "查询表 capacity_reserved 中 instance=172.19.19.128:8080 的记录，按每 小时 统计指标的 总和", "level": 2, "category": "complex_aggregation"}
+{"id": 19, "query": "查询表 range_removes_total 中 instance=172.19.19.130:8080 的记录，按每 小时 统计指标的 总和", "level": 2, "category": "complex_aggregation"}
+{"id": 20, "query": "查询表 ranges_overreplicated 中 node_id=2 的记录，按每 30分钟 统计指标的 总和", "level": 2, "category": "complex_aggregation"}
+{"id": 21, "query": "对比表 cloud_readers_opened_total 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 22, "query": "分析表 cloud_readers_opened_total 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 23, "query": "查询表 cloud_readers_opened_total 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 24, "query": "对比表 changefeed_admit_latency_sum 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 25, "query": "分析表 changefeed_admit_latency_sum 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 26, "query": "查询表 changefeed_admit_latency_sum 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 27, "query": "对比表 rocksdb_block_cache_misses_total 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 28, "query": "分析表 rocksdb_block_cache_misses_total 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 29, "query": "查询表 rocksdb_block_cache_misses_total 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 30, "query": "对比表 queue_consistency_pending 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 31, "query": "分析表 queue_consistency_pending 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 32, "query": "查询表 queue_consistency_pending 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 33, "query": "对比表 raft_replication_latency_sum 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 34, "query": "分析表 raft_replication_latency_sum 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 35, "query": "查询表 raft_replication_latency_sum 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 36, "query": "对比表 changefeed_flush_hist_nanos_sum 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 37, "query": "分析表 changefeed_flush_hist_nanos_sum 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 38, "query": "查询表 changefeed_flush_hist_nanos_sum 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 39, "query": "对比表 livecount 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 40, "query": "分析表 livecount 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 41, "query": "查询表 livecount 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 42, "query": "对比表 changefeed_commit_latency_bucket 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 43, "query": "分析表 changefeed_commit_latency_bucket 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 44, "query": "查询表 changefeed_commit_latency_bucket 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 45, "query": "对比表 raft_sent_bytes_total 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 46, "query": "分析表 raft_sent_bytes_total 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 47, "query": "查询表 raft_sent_bytes_total 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 48, "query": "对比表 distsender_rangefeed_catchup_ranges 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 49, "query": "分析表 distsender_rangefeed_catchup_ranges 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 50, "query": "查询表 distsender_rangefeed_catchup_ranges 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 51, "query": "对比表 range_snapshots_recv_queue_bytes 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 52, "query": "分析表 range_snapshots_recv_queue_bytes 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 53, "query": "查询表 range_snapshots_recv_queue_bytes 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 54, "query": "对比表 range_snapshots_recv_in_progress 中今天和昨天同一时段的指标值，找出变化超过20%的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 55, "query": "分析表 range_snapshots_recv_in_progress 中本周与上周的指标趋势差异", "level": 3, "category": "complex_time_series"}
+{"id": 56, "query": "查询表 range_snapshots_recv_in_progress 中最近7天每天的最大值和最小值，对比波动幅度", "level": 3, "category": "complex_time_series"}
+{"id": 57, "query": "在表 leases_success_total 中找出最近24小时内指标值超过均值2倍标准差的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 58, "query": "检测表 leases_success_total 中最近1小时的突刺，找出尖峰出现的时间", "level": 3, "category": "complex_time_series"}
+{"id": 59, "query": "分析表 leases_success_total 最近6小时的数据，标记异常点（值超过P99阈值的记录）", "level": 3, "category": "complex_time_series"}
+{"id": 60, "query": "在表 raft_transport_send_queue_size 中找出最近24小时内指标值超过均值2倍标准差的时间点", "level": 3, "category": "complex_time_series"}
+{"id": 61, "query": "在同一节点 node_id=2 上，对比表 admission_elastic_cpu_utilization 和表 raft_scheduler_latency_count 最近1小时的指标变化趋势，分析 CPU 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 62, "query": "查询节点 2 最近6小时的 CPU 指标 (admission_elastic_cpu_utilization) 和 延迟 指标 (raft_scheduler_latency_count)，找出 延迟 峰值时对应的 CPU 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 63, "query": "在同一节点 node_id=4 上，对比表 admission_elastic_cpu_utilization 和表 liveness_heartbeatlatency_sum 最近1小时的指标变化趋势，分析 CPU 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 64, "query": "查询节点 4 最近6小时的 CPU 指标 (admission_elastic_cpu_utilization) 和 延迟 指标 (liveness_heartbeatlatency_sum)，找出 延迟 峰值时对应的 CPU 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 65, "query": "在同一节点 node_id=2 上，对比表 changefeed_usage_query_duration_sum 和表 changefeed_admit_latency_count 最近1小时的指标变化趋势，分析 SQL 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 66, "query": "查询节点 2 最近6小时的 SQL 指标 (changefeed_usage_query_duration_sum) 和 延迟 指标 (changefeed_admit_latency_count)，找出 延迟 峰值时对应的 SQL 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 67, "query": "在同一节点 node_id=4 上，对比表 changefeed_usage_query_duration_sum 和表 leases_requests_latency_count 最近1小时的指标变化趋势，分析 SQL 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 68, "query": "查询节点 4 最近6小时的 SQL 指标 (changefeed_usage_query_duration_sum) 和 延迟 指标 (leases_requests_latency_count)，找出 延迟 峰值时对应的 SQL 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 69, "query": "在同一节点 node_id=2 上，对比表 changefeed_usage_query_duration_sum 和表 changefeed_admit_latency_sum 最近1小时的指标变化趋势，分析 SQL 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 70, "query": "查询节点 2 最近6小时的 SQL 指标 (changefeed_usage_query_duration_sum) 和 延迟 指标 (changefeed_admit_latency_sum)，找出 延迟 峰值时对应的 SQL 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 71, "query": "在同一节点 node_id=4 上，对比表 log_fluent_sink_write_errors_total 和表 changefeed_stage_encode_latency_sum 最近1小时的指标变化趋势，分析 错误 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 72, "query": "查询节点 4 最近6小时的 错误 指标 (log_fluent_sink_write_errors_total) 和 延迟 指标 (changefeed_stage_encode_latency_sum)，找出 延迟 峰值时对应的 错误 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 73, "query": "在同一节点 node_id=2 上，对比表 queue_gc_info_intenttxns_total 和表 liveness_heartbeatlatency_sum 最近1小时的指标变化趋势，分析 错误 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 74, "query": "查询节点 2 最近6小时的 错误 指标 (queue_gc_info_intenttxns_total) 和 延迟 指标 (liveness_heartbeatlatency_sum)，找出 延迟 峰值时对应的 错误 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 75, "query": "在同一节点 node_id=2 上，对比表 liveness_heartbeatfailures_total 和表 changefeed_commit_latency_count 最近1小时的指标变化趋势，分析 错误 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 76, "query": "查询节点 2 最近6小时的 错误 指标 (liveness_heartbeatfailures_total) 和 延迟 指标 (changefeed_commit_latency_count)，找出 延迟 峰值时对应的 错误 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 77, "query": "在同一节点 node_id=3 上，对比表 rebalancing_range_rebalances_total 和表 raft_rcvd_queued_bytes 最近1小时的指标变化趋势，分析 Raft 和 队列 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 78, "query": "查询节点 3 最近6小时的 Raft 指标 (rebalancing_range_rebalances_total) 和 队列 指标 (raft_rcvd_queued_bytes)，找出 队列 峰值时对应的 Raft 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 79, "query": "在同一节点 node_id=4 上，对比表 replicas_leaders 和表 queue_gc_info_resolvefailed_total 最近1小时的指标变化趋势，分析 Raft 和 队列 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 80, "query": "查询节点 4 最近6小时的 Raft 指标 (replicas_leaders) 和 队列 指标 (queue_gc_info_resolvefailed_total)，找出 队列 峰值时对应的 Raft 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 81, "query": "在同一节点 node_id=2 上，对比表 raft_storage_read_bytes_total 和表 queue_gc_info_intenttxns_total 最近1小时的指标变化趋势，分析 Raft 和 队列 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 82, "query": "查询节点 2 最近6小时的 Raft 指标 (raft_storage_read_bytes_total) 和 队列 指标 (queue_gc_info_intenttxns_total)，找出 队列 峰值时对应的 Raft 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 83, "query": "在同一节点 node_id=1 上，对比表 admission_elastic_cpu_utilization 和表 cloud_open_writers 最近1小时的指标变化趋势，分析 CPU 和 磁盘 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 84, "query": "查询节点 1 最近6小时的 CPU 指标 (admission_elastic_cpu_utilization) 和 磁盘 指标 (cloud_open_writers)，找出 磁盘 峰值时对应的 CPU 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 85, "query": "在同一节点 node_id=2 上，对比表 admission_elastic_cpu_utilization 和表 cloud_read_bytes_total 最近1小时的指标变化趋势，分析 CPU 和 磁盘 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 86, "query": "查询节点 2 最近6小时的 CPU 指标 (admission_elastic_cpu_utilization) 和 磁盘 指标 (cloud_read_bytes_total)，找出 磁盘 峰值时对应的 CPU 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 87, "query": "在同一节点 node_id=1 上，对比表 admission_elastic_cpu_utilization 和表 rebalancing_readspersecond 最近1小时的指标变化趋势，分析 CPU 和 磁盘 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 88, "query": "查询节点 1 最近6小时的 CPU 指标 (admission_elastic_cpu_utilization) 和 磁盘 指标 (rebalancing_readspersecond)，找出 磁盘 峰值时对应的 CPU 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 89, "query": "在同一节点 node_id=4 上，对比表 log_fluent_sink_write_errors_total 和表 liveness_heartbeatlatency_bucket 最近1小时的指标变化趋势，分析 磁盘 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 90, "query": "查询节点 4 最近6小时的 磁盘 指标 (log_fluent_sink_write_errors_total) 和 延迟 指标 (liveness_heartbeatlatency_bucket)，找出 延迟 峰值时对应的 磁盘 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 91, "query": "在同一节点 node_id=1 上，对比表 rebalancing_readbytespersecond 和表 leases_preferences_violating 最近1小时的指标变化趋势，分析 磁盘 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 92, "query": "查询节点 1 最近6小时的 磁盘 指标 (rebalancing_readbytespersecond) 和 延迟 指标 (leases_preferences_violating)，找出 延迟 峰值时对应的 磁盘 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 93, "query": "在同一节点 node_id=3 上，对比表 rebalancing_writebytespersecond 和表 changefeed_commit_latency_bucket 最近1小时的指标变化趋势，分析 磁盘 和 延迟 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 94, "query": "查询节点 3 最近6小时的 磁盘 指标 (rebalancing_writebytespersecond) 和 延迟 指标 (changefeed_commit_latency_bucket)，找出 延迟 峰值时对应的 磁盘 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 95, "query": "在同一节点 node_id=3 上，对比表 log_fluent_sink_write_errors_total 和表 changefeed_usage_query_duration_sum 最近1小时的指标变化趋势，分析 错误 和 SQL 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 96, "query": "查询节点 3 最近6小时的 错误 指标 (log_fluent_sink_write_errors_total) 和 SQL 指标 (changefeed_usage_query_duration_sum)，找出 SQL 峰值时对应的 错误 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 97, "query": "在同一节点 node_id=4 上，对比表 queue_gc_info_pushtxn_total 和表 changefeed_usage_query_duration_sum 最近1小时的指标变化趋势，分析 错误 和 SQL 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 98, "query": "查询节点 4 最近6小时的 错误 指标 (queue_gc_info_pushtxn_total) 和 SQL 指标 (changefeed_usage_query_duration_sum)，找出 SQL 峰值时对应的 错误 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 99, "query": "在同一节点 node_id=2 上，对比表 admission_errored_kv_stores_total 和表 changefeed_usage_query_duration_sum 最近1小时的指标变化趋势，分析 错误 和 SQL 之间是否存在关联", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 100, "query": "查询节点 2 最近6小时的 错误 指标 (admission_errored_kv_stores_total) 和 SQL 指标 (changefeed_usage_query_duration_sum)，找出 SQL 峰值时对应的 错误 值", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 101, "query": "将表 raft_rcvd_heartbeat_total 和表 changefeed_failures_total 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 102, "query": "JOIN 表 raft_rcvd_heartbeat_total 和表 changefeed_failures_total，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 103, "query": "将表 range_snapshots_recv_queue_bytes 和表 distsender_rangefeed_local_ranges 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 104, "query": "JOIN 表 range_snapshots_recv_queue_bytes 和表 distsender_rangefeed_local_ranges，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 105, "query": "将表 range_snapshots_send_queue 和表 raft_rcvd_heartbeat_total 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 106, "query": "JOIN 表 range_snapshots_send_queue 和表 raft_rcvd_heartbeat_total，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 107, "query": "将表 range_snapshots_generated_total 和表 changefeed_size_based_flushes_total 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 108, "query": "JOIN 表 range_snapshots_generated_total 和表 changefeed_size_based_flushes_total，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 109, "query": "将表 changefeed_message_size_hist_sum 和表 livebytes 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 110, "query": "JOIN 表 changefeed_message_size_hist_sum 和表 livebytes，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 111, "query": "将表 changefeed_network_bytes_out_total 和表 raft_scheduler_latency_bucket 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 112, "query": "JOIN 表 changefeed_network_bytes_out_total 和表 raft_scheduler_latency_bucket，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 113, "query": "将表 raft_rcvd_stepped_bytes_total 和表 addsstable_copies_total 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 114, "query": "JOIN 表 raft_rcvd_stepped_bytes_total 和表 addsstable_copies_total，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 115, "query": "将表 range_raftleadertransfers_total 和表 leases_epoch 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 116, "query": "JOIN 表 range_raftleadertransfers_total 和表 leases_epoch，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 117, "query": "将表 raft_rcvd_dropped_bytes_total 和表 build_timestamp 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 118, "query": "JOIN 表 raft_rcvd_dropped_bytes_total 和表 build_timestamp，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 119, "query": "将表 changefeed_filtered_messages_total 和表 leases_success_total 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 120, "query": "JOIN 表 changefeed_filtered_messages_total 和表 leases_success_total，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 121, "query": "将表 distsender_rangelookups_total 和表 cloud_conns_reused_total 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 122, "query": "JOIN 表 distsender_rangelookups_total 和表 cloud_conns_reused_total，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 123, "query": "将表 changefeed_backfill_pending_ranges 和表 cloud_conns_reused_total 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 124, "query": "JOIN 表 changefeed_backfill_pending_ranges 和表 cloud_conns_reused_total，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 125, "query": "将表 raft_transport_reverse_rcvd_total 和表 changefeed_commit_latency_bucket 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 126, "query": "JOIN 表 raft_transport_reverse_rcvd_total 和表 changefeed_commit_latency_bucket，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 127, "query": "将表 changefeed_commit_latency_count 和表 rocksdb_block_cache_usage 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 128, "query": "JOIN 表 changefeed_commit_latency_count 和表 rocksdb_block_cache_usage，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 129, "query": "将表 raft_rcvd_cross_zone_bytes_total 和表 changefeed_buffer_entries_kv_total 按时间戳关联，查询同一时间段两个指标的对应关系", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 130, "query": "JOIN 表 raft_rcvd_cross_zone_bytes_total 和表 changefeed_buffer_entries_kv_total，比较相同 instance 下的指标差异", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 131, "query": "在节点 2 上同时查询表 raft_rcvd_voteresp_total 和表 changefeed_flushed_bytes_total 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 132, "query": "在节点 4 上同时查询表 rangevalbytes 和表 raft_scheduler_latency_sum 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 133, "query": "在节点 3 上同时查询表 changefeed_nprocs_flush_nanos_count 和表 raft_rcvd_voteresp_total 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 134, "query": "在节点 4 上同时查询表 range_snapshots_generated_total 和表 changefeed_usage_query_duration_sum 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 135, "query": "在节点 2 上同时查询表 raft_scheduler_latency_bucket 和表 requests_slow_latch 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 136, "query": "在节点 4 上同时查询表 distsender_rpc_barrier_sent_total 和表 rebalancing_readspersecond 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 137, "query": "在节点 3 上同时查询表 ranges_overreplicated 和表 logical_replication_catchup_ranges 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 138, "query": "在节点 4 上同时查询表 raft_rcvd_prevoteresp_total 和表 changefeed_flush_hist_nanos_count 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 139, "query": "在节点 2 上同时查询表 cloud_listings_total 和表 changefeed_buffer_entries_in_total 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 140, "query": "在节点 1 上同时查询表 leases_liveness 和表 range_merges_total 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 141, "query": "在节点 2 上同时查询表 raft_sent_bytes_total 和表 range_merges_total 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 142, "query": "在节点 1 上同时查询表 clock_offset_meannanos 和表 changefeed_buffer_entries_out_total 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 143, "query": "在节点 1 上同时查询表 requests_backpressure_split 和表 clock_offset_mediannanos 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 144, "query": "在节点 1 上同时查询表 changefeed_buffer_entries_kv_total 和表 leases_leader 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 145, "query": "在节点 2 上同时查询表 changefeed_buffer_entries_out_total 和表 distsender_batches_async_sent_total 最近1小时的数据，按时间对齐后对比两者的变化趋势", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 146, "query": "节点 4 上错误指标 queue_gc_info_abortspangcnum_total 最近24小时有没有突然增多？如果有，同时段延迟指标 liveness_heartbeatlatency_count 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 147, "query": "节点 4 上错误指标 queue_gc_info_resolvefailed_total 最近24小时有没有突然增多？如果有，同时段延迟指标 changefeed_admit_latency_count 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 148, "query": "节点 1 上错误指标 changefeed_error_retries_total 最近24小时有没有突然增多？如果有，同时段延迟指标 liveness_heartbeatlatency_bucket 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 149, "query": "节点 3 上错误指标 changefeed_sink_errors_total 最近24小时有没有突然增多？如果有，同时段延迟指标 changefeed_usage_query_duration_sum 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 150, "query": "节点 2 上错误指标 leases_error_total 最近24小时有没有突然增多？如果有，同时段延迟指标 raft_scheduler_latency_count 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 151, "query": "节点 4 上错误指标 changefeed_usage_error_count_total 最近24小时有没有突然增多？如果有，同时段延迟指标 liveness_heartbeatlatency_count 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 152, "query": "节点 2 上错误指标 liveness_heartbeatfailures_total 最近24小时有没有突然增多？如果有，同时段延迟指标 liveness_heartbeatlatency_sum 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 153, "query": "节点 2 上错误指标 changefeed_failures_total 最近24小时有没有突然增多？如果有，同时段延迟指标 liveness_heartbeatlatency_sum 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 154, "query": "节点 1 上错误指标 changefeed_error_retries_total 最近24小时有没有突然增多？如果有，同时段延迟指标 raft_scheduler_latency_count 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 155, "query": "节点 1 上错误指标 changefeed_failures_total 最近24小时有没有突然增多？如果有，同时段延迟指标 changefeed_usage_query_duration_sum 是否也同步恶化", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 156, "query": "综合分析节点 2 的运行状态，同时查看以下指标最近6小时的趋势：liveness_livenodes、raft_rcvd_cross_zone_bytes_total、queue_gc_info_resolvesuccess_total、changefeed_usage_query_duration_sum", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 157, "query": "综合分析节点 4 的运行状态，同时查看以下指标最近6小时的趋势：changefeed_batch_reduction_count、changefeed_nprocs_flush_nanos_count、liveness_epochincrements_total、addsstable_copies_total", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 158, "query": "综合分析节点 4 的运行状态，同时查看以下指标最近6小时的趋势：cloud_readers_opened_total、physical_replication_running、distsender_batches_partial_total、log_fluent_sink_conn_attempts_total", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 159, "query": "综合分析节点 4 的运行状态，同时查看以下指标最近6小时的趋势：changefeed_message_size_hist_sum、changefeed_sink_errors_total、distsender_rangefeed_catchup_ranges、changefeed_usage_table_bytes", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 160, "query": "综合分析节点 1 的运行状态，同时查看以下指标最近6小时的趋势：raft_transport_sent_total、raft_scheduler_latency_bucket、changefeed_batch_reduction_count、distsender_rpc_delete_sent_total", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 161, "query": "综合分析节点 1 的运行状态，同时查看以下指标最近6小时的趋势：changefeed_aggregator_progress、raftlog_size_max、queue_gc_info_resolvefailed_total、raft_rcvd_fortifyleaderresp_total", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 162, "query": "综合分析节点 2 的运行状态，同时查看以下指标最近6小时的趋势：changefeed_backfill_pending_ranges、raft_rcvd_heartbeatresp_total、changefeed_commit_latency_bucket、changefeed_running", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 163, "query": "综合分析节点 1 的运行状态，同时查看以下指标最近6小时的趋势：range_raftleaderremovals_total、changefeed_buffer_entries_kv_total、rebalancing_readspersecond、cloud_conns_opened_total", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 164, "query": "综合分析节点 4 的运行状态，同时查看以下指标最近6小时的趋势：changefeed_flush_hist_nanos_count、raft_transport_reverse_rcvd_total、cloud_listings_total、raft_transport_sent_total", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 165, "query": "综合分析节点 1 的运行状态，同时查看以下指标最近6小时的趋势：range_snapshots_recv_in_progress、changefeed_commit_latency_bucket、log_buffered_messages_dropped_total、rangevalbytes", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 166, "query": "对比表 raftlog_size_max 在节点 3 和节点 2 上最近1小时的指标差异，判断哪个节点负载更高", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 167, "query": "查询表 raftlog_size_max 在所有节点上最近6小时的平均值，排序找出负载最高的节点", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 168, "query": "对比表 changefeed_total_ranges 在节点 3 和节点 1 上最近1小时的指标差异，判断哪个节点负载更高", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 169, "query": "查询表 changefeed_total_ranges 在所有节点上最近6小时的平均值，排序找出负载最高的节点", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 170, "query": "对比表 cloud_readers_opened_total 在节点 4 和节点 1 上最近1小时的指标差异，判断哪个节点负载更高", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 171, "query": "查询表 cloud_readers_opened_total 在所有节点上最近6小时的平均值，排序找出负载最高的节点", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 172, "query": "对比表 rebalancing_readbytespersecond 在节点 3 和节点 2 上最近1小时的指标差异，判断哪个节点负载更高", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 173, "query": "查询表 rebalancing_readbytespersecond 在所有节点上最近6小时的平均值，排序找出负载最高的节点", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 174, "query": "对比表 distsender_rpc_delete_sent_total 在节点 1 和节点 4 上最近1小时的指标差异，判断哪个节点负载更高", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 175, "query": "查询表 distsender_rpc_delete_sent_total 在所有节点上最近6小时的平均值，排序找出负载最高的节点", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 176, "query": "对比表 queue_consistency_pending 在节点 1 和节点 4 上最近1小时的指标差异，判断哪个节点负载更高", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 177, "query": "查询表 queue_consistency_pending 在所有节点上最近6小时的平均值，排序找出负载最高的节点", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 178, "query": "对比表 raft_replication_latency_sum 在节点 2 和节点 3 上最近1小时的指标差异，判断哪个节点负载更高", "level": 4, "category": "multi_table_diagnostic"}
+{"id": 179, "query": "系统最近1小时运行正常吗？有哪些异常指标", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 180, "query": "哪些节点目前负载最高？按CPU、内存、延迟分别排序", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 181, "query": "最近6小时内有没有出现过性能抖动？从哪些指标能看出来", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 182, "query": "帮我找出集群中可能存在问题的节点，需要看哪些指标", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 183, "query": "分析一下当前系统的健康状态，包括CPU、内存、延迟、错误率", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 184, "query": "最近一天内哪个时间段系统压力最大？为什么", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 185, "query": "有没有节点出现了资源瓶颈？从CPU和内存的角度分析", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 186, "query": "当前集群中有没有异常节点？描述一下判断依据", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 187, "query": "最近24小时系统的整体趋势如何？有没有恶化的迹象", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 188, "query": "对比各个节点，哪个节点的错误率最高？可能是什么原因", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 189, "query": "查看系统最近有无突发负载，哪些指标能反映", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 190, "query": "分析集群的读写延迟是否有恶化趋势", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 191, "query": "节点之间的负载是否均衡？如果不均衡哪个节点最忙", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 192, "query": "查看是否有正在排队的请求积压", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 193, "query": "最近的Raft共识有没有异常，从哪些指标看", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 194, "query": "分析磁盘I/O是否是当前系统的瓶颈", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 195, "query": "最近有没有SQL执行超时的情况", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 196, "query": "检查事务失败率是否在正常范围", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 197, "query": "查看连接数是否接近上限", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 198, "query": "分析内存使用是否在持续增长，是否存在泄漏风险", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 199, "query": "最近有没有发生过OOM或者内存压力事件", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 200, "query": "查看副本同步是否有延迟", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 201, "query": "分析GC暂停是否影响了查询延迟", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 202, "query": "检查租约续约是否有超时", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 203, "query": "有没有热点的Range导致某个节点压力过大", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 204, "query": "查询CPU使用率最高的5个节点", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 205, "query": "CPU使用情况最近有什么变化", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 206, "query": "查询延迟情况", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 207, "query": "延迟最近有没有变慢", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 208, "query": "P99延迟是否在可接受范围", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 209, "query": "查看错误日志", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 210, "query": "最近有没有报错", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 211, "query": "系统错误率是多少", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 212, "query": "查看集群的整体性能指标", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 213, "query": "分析最近一次性能下降的原因", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 214, "query": "查看数据库的并发压力", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 215, "query": "检查存储层的读写性能", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 216, "query": "网络延迟是否正常", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 217, "query": "如果要扩容一个节点，从当前指标看应该扩哪个节点？依据是什么", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 218, "query": "分析最近1小时，有没有慢查询拖累了整体性能", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 219, "query": "查看是否有大事务阻塞了其他操作", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 220, "query": "当前配置的缓存命中率是否合理", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 221, "query": "有没有schema变更正在影响查询性能", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 222, "query": "分析日志写入量是否突然增加导致磁盘压力", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 223, "query": "检查副本数据是否一致", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 224, "query": "有没有Range分裂/合并操作正在进行", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 225, "query": "查看Compaction是否在影响前台读写", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 226, "query": "分析是否有热点写入导致某个Store负载过高", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 227, "query": "当前集群的QPS是否接近历史峰值", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 228, "query": "有没有租约过期的Range", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 229, "query": "查看MVCC垃圾回收是否及时", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 230, "query": "分析事务重试率是否偏高", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 231, "query": "有没有慢Raft提案导致提交延迟", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 232, "query": "检查是否有Intent堆积", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 233, "query": "查看SQL语句的计划缓存命中率", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 234, "query": "有没有Range在频繁Rebalance", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 235, "query": "分析是否有节点间网络分区导致的问题", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 236, "query": "查看Changefeed是否有滞后", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 237, "query": "先找出CPU使用率最高的3个节点，然后分别查询这些节点的内存和延迟指标，分析是否有资源瓶颈", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 238, "query": "查询过去1小时错误率最高的节点，然后检查该节点的系统资源使用情况，最后判断是否需要告警", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 239, "query": "对比所有节点的磁盘I/O，找出I/O最繁忙的节点，然后查看该节点的写放大是否偏高", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 240, "query": "先查看整体的QPS趋势，然后分析QPS高峰时段各节点的延迟分布，找出性能瓶颈节点", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 241, "query": "检查哪些SQL类型的延迟最高，然后查看对应时间段的系统资源，判断是资源不足还是SQL本身的问题", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 242, "query": "先找出最近1小时出现异常的指标，然后追溯到对应的节点和时段，分析异常的可能原因", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 243, "query": "查看Raft共识的相关指标，如果有异常，进一步检查网络延迟和磁盘写入，定位根因", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 244, "query": "分析当前各节点的负载分布，如果不均衡，查看Rebalance相关的指标，判断是否需要干预", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 245, "query": "查询最近24小时的事务失败率，按错误类型分类，然后分析失败率最高的时段对应的系统状态", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 246, "query": "从集群级别、节点级别、Store级别逐层查看存储指标，找出最可能的存储瓶颈点", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 247, "query": "show me which nodes have the highest P99 latency in the last hour", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 248, "query": "找出过去6小时 error count 最多的3个 instance", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 249, "query": "what's the current QPS trend compared to yesterday same time", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 250, "query": "查询最近24小时 the ratio of failed transactions to total transactions", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 251, "query": "find nodes where CPU usage exceeded 80% at any point in the last hour", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 252, "query": "列出所有 instance 的 average query latency，按从高到低排序", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 253, "query": "show me the top 5 hot ranges by QPS in the last 30 minutes", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 254, "query": "当前有多少 active connections，是否接近 max_connections 限制", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 255, "query": "compare the disk throughput between node-1 and node-2 in the last 6 hours", "level": 5, "category": "natural_language_diagnostic"}
+{"id": 256, "query": "查询哪些 SQL statements 占用了最多的 memory", "level": 5, "category": "natural_language_diagnostic"}

@@ -2,8 +2,12 @@
 知识库索引初始化脚本
 
 用法:
+    # 按 config.yml 中的 database.system 自动选择工作空间
     python scripts/index_knowledge.py --config config.yml
-    python scripts/index_knowledge.py --config config.yml --rebuild
+
+    # 显式指定工作空间（覆盖 config 中的 database.system）
+    python scripts/index_knowledge.py --config config.yml --system sundb
+    python scripts/index_knowledge.py --config config.yml --system cockroach --rebuild
 """
 import argparse
 import logging
@@ -36,7 +40,12 @@ def main():
     parser.add_argument(
         "--knowledge-dir",
         default=None,
-        help="知识库目录（覆盖配置文件中的设置）"
+        help="知识库根目录（覆盖配置文件中的 schema_filter.knowledge_dir）"
+    )
+    parser.add_argument(
+        "--system",
+        default=None,
+        help="工作空间名称（如 sundb / cockroach），覆盖 config.database.system"
     )
     args = parser.parse_args()
     
@@ -54,9 +63,23 @@ def main():
     redis_config = config.get("redis", {})
     embedding_config = config.get("embedding", {})
     schema_filter_config = config.get("schema_filter", {})
-    
-    # 确定知识库目录
-    knowledge_dir = args.knowledge_dir or schema_filter_config.get("knowledge_dir", "json")
+    db_config = config.get("database", {})
+
+    # 确定工作空间（system）：CLI 参数优先于 config.database.system
+    system = args.system or db_config.get("system", "")
+    if not system:
+        logger.error("未指定工作空间。请通过 --system 参数或在 config.yml 中设置 database.system")
+        sys.exit(1)
+    system = system.lower()
+
+    # 知识库目录：默认 {schema_filter.knowledge_dir}/{system}，CLI 可覆盖
+    base_dir = args.knowledge_dir or schema_filter_config.get("knowledge_dir", "json")
+    knowledge_dir = base_dir if args.knowledge_dir else str(Path(base_dir) / system)
+
+    # 索引名按工作空间派生：{redis.index_name}_{system}
+    base_index = redis_config.get("index_name", "xiyan_schema")
+    index_name = f"{base_index}_{system}"
+    logger.info(f"工作空间: {system}, 知识库目录: {knowledge_dir}, 索引名: {index_name}")
     
     # 初始化 Redis
     import redis
@@ -82,7 +105,7 @@ def main():
     # 初始化索引管理器
     from xiyan_mcp_server.utils.knowledge_indexer import KnowledgeIndexer
     indexer_config = {
-        "index_name": redis_config.get("index_name", "xiyan_schema"),
+        "index_name": index_name,
         "vector_dim": embedding_config.get("vector_dim", 768),
         "knowledge_dir": knowledge_dir
     }

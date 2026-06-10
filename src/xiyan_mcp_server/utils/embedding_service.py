@@ -157,7 +157,7 @@ class EmbeddingService:
             import requests
 
             if self.use_vllm_format:
-                # 本地 vLLM 格式：使用 texts 字段
+                # 本地 vLLM 使用 OpenAI 兼容格式：input 字段
                 response = requests.post(
                     f"{self.api_url}embeddings",
                     headers={
@@ -166,14 +166,14 @@ class EmbeddingService:
                     },
                     json={
                         "model": self.model_name,
-                        "texts": texts
+                        "input": texts
                     },
                     timeout=60
                 )
                 response.raise_for_status()
                 result = response.json()
-                # vLLM 响应格式: {"embeddings": [[...], [...]]}
-                embeddings = result.get("embeddings", [])
+                # OpenAI 响应格式: {"data": [{"embedding": [...]}, ...]}
+                embeddings = [item["embedding"] for item in result.get("data", [])]
                 return embeddings
             else:
                 # ModelScope 云端 API：需要 encoding_format 参数

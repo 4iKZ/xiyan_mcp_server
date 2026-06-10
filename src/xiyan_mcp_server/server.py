@@ -19,6 +19,10 @@ from .utils.db_util import init_db_conn
 from .utils.file_util import extract_sql_from_qwen
 from .utils.hdfs_util import HDFSUploader, convert_to_parquet_and_upload
 from .utils.llm_util import call_openai_sdk
+from .utils.query_tracker import (
+    get_query_tracker, classify_error, extract_tables_from_sql,
+    extract_relevant_schema, count_available_tables,
+)
 
 
 def create_db_source(db_engine, dialect: str, db_name: str = '', system_prefix: str = ''):
@@ -307,11 +311,18 @@ def get_hdfs_uploader():
     return _hdfs_uploader
 
 # Schema 检索器配置（延迟初始化）
+# 索引名按 database.system 自动派生：xiyan_schema + "_" + system，实现多工作空间隔离
+_base_index_name = redis_config.get("index_name", "xiyan_schema")
+_workspace_index_name = (
+    f"{_base_index_name}_{global_system_prefix.lower()}"
+    if global_system_prefix else _base_index_name
+)
 _retriever_config = {
-    "index_name": redis_config.get("index_name", "xiyan_schema"),
+    "index_name": _workspace_index_name,
     "top_k": schema_filter_config.get("top_k", 5),
     "score_threshold": schema_filter_config.get("score_threshold", 0.6)
 }
+logger.info(f"Schema 检索器索引名: {_workspace_index_name} (system={global_system_prefix})")
 
 # 初始化 Schema 检索器（如果启用）
 schema_retriever = None
@@ -491,6 +502,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     """
 
     # db_env = context_variables.get('db_env', None)
+    t_start = time.time()
     prompt = f"""你现在是一名{db_env.dialect}数据分析专家，你的任务是根据参考的数据库schema和用户的问题，编写正确的SQL来回答用户的问题，生成的SQL用``sql 和```包围起来。
 注意：
 1、表名已经包含了完整的 schema 前缀（如 sundb_metrics.table_name），请直接引用这些表名，**禁止**添加 'public.' 或其他任何额外的库名/Schema 前缀。
@@ -516,38 +528,80 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
         "api_version": model_config.get("api_version"),
     }
 
+    # --- 追踪数据 ---
+    tracking = {
+        "initial_sql": "",
+        "schema_used": db_env.mschema_str,
+        "exec_error": None,
+        "error_type": None,
+        "retries": [],
+        "tables_used": [],
+    }
+
     try:
+        t_llm_start = time.time()
         response = call_openai_sdk(**param)
+        llm_latency_ms = (time.time() - t_llm_start) * 1000
         content = response.choices[0].message.content
         logger.debug(f"LLM Raw Response: {content}")
         sql_query = extract_sql_from_qwen(content)
         logger.info(f"Extracted SQL: {sql_query}")
-        
+        tracking["initial_sql"] = sql_query or ""
+        tracking["llm_latency_ms"] = round(llm_latency_ms, 2)
+
         status, res = db_env.database.fetch(sql_query)
         if not status:
             logger.warning(f"Initial SQL execution failed: {res}. Starting fix loop...")
+            tracking["exec_error"] = str(res) if res else "unknown"
+            tracking["error_type"] = classify_error(str(res))
+
+            prev_sql = sql_query
             for idx in range(5):
-                sql_query = sql_fix(
-                    db_env.dialect, db_env.mschema_str, query, sql_query, res
+                repaired_sql = sql_fix(
+                    db_env.dialect, db_env.mschema_str, query, prev_sql, res
                 )
-                logger.info(f"Fixed SQL (Attempt {idx+1}): {sql_query}")
-                status, res = db_env.database.fetch(sql_query)
+                logger.info(f"Fixed SQL (Attempt {idx+1}): {repaired_sql}")
+                status, res = db_env.database.fetch(repaired_sql)
+
+                retry_record = {
+                    "attempt": idx + 1,
+                    "failed_sql": prev_sql,
+                    "error_msg": str(res) if not status and res else "",
+                    "repaired_sql": repaired_sql,
+                    "success": status,
+                }
+                tracking["retries"].append(retry_record)
+
                 if status:
                     logger.info("SQL fix successful.")
+                    sql_query = repaired_sql
                     break
+                prev_sql = repaired_sql
+
             if not status:
                 logger.error(f"SQL fix failed after 5 attempts. Last error: {res}")
+                tracking["exec_error"] = str(res) if res else tracking["exec_error"]
 
         sql_res = db_env.database.fetch_truncated(sql_query, max_rows=50000)
         logger.info(f"SQL result count: {len(sql_res.get('truncated_results', []))}")
+
+        # 提取表名
+        tracking["tables_used"] = extract_tables_from_sql(sql_query)
+        tracking["total_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+
         # 返回原始字典，让调用方根据 format 参数格式化
+        sql_res["_tracking"] = tracking
         return sql_res
 
     except Exception as e:
         logger.error(f"SQL generation or execution failed: {e}", exc_info=True)
+        tracking["exec_error"] = str(e)
+        tracking["error_type"] = type(e).__name__
+        tracking["total_latency_ms"] = round((time.time() - t_start) * 1000, 2)
         return {
             "error": str(e),
-            "error_type": type(e).__name__
+            "error_type": type(e).__name__,
+            "_tracking": tracking,
         }
 
 
@@ -669,6 +723,7 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
     logger.info("Calling xiyan")
 
     # Schema 过滤
+    filtered_table_names = []  # 记录传给 LLM 的候选表名
     if schema_filter_enabled:
         try:
             # 使用封装函数获取 Schema 检索器（线程安全）
@@ -680,13 +735,14 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
                 database=global_db_config.get("database"),
                 system_prefix=global_system_prefix
             )
+            filtered_table_names = table_names[:]  # 复制一份
             logger.info(f"Schema 过滤：检索到 {len(table_names)} 个表: {table_names}")
             logger.debug(f"生成的 Sub-Schema 长度: {len(sub_schema)} 字符")
-            
+
             # 创建使用 Sub-Schema 的环境
             env = DataBaseEnv(db_source)
             env.mschema_str = sub_schema  # 覆盖为精简 Schema
-            
+
         except Exception as e:
             logger.warning(f"Schema 过滤失败，使用完整 Schema: {e}")
             env = DataBaseEnv(db_source)
@@ -694,6 +750,54 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
         env = DataBaseEnv(db_source)
     
     res = sql_gen_and_execute(env, query)
+
+    # --- 记录追踪数据 ---
+    tracking = res.pop("_tracking", {})
+    if tracking:
+        try:
+            tracker = get_query_tracker()
+            retries_data = tracking.get("retries", [])
+            # 根据修复历史判断最终成功/失败
+            if retries_data:
+                exec_success = retries_data[-1].get("success", False)
+            else:
+                exec_success = tracking.get("exec_error") is None
+            # result_preview 只取真正的列表数据
+            rows = res.get("truncated_results", [])
+            if isinstance(rows, list):
+                result_rows = len(rows)
+                result_preview = rows[:3] if rows else None
+            else:
+                result_rows = 0
+                result_preview = None
+            # Schema 过滤的表名列表（传给 LLM 的候选表）
+            filtered_tables = filtered_table_names
+            tables_used = tracking.get("tables_used", [])
+            full_schema = tracking.get("schema_used", "")
+            tracker.record_query(
+                nl_query=query,
+                tool="get_data",
+                database=global_db_config.get("database", ""),
+                dialect=dialect,
+                format_type=format_type,
+                schema_filtered=schema_filter_enabled,
+                initial_sql=tracking.get("initial_sql", ""),
+                exec_success=exec_success,
+                exec_error=tracking.get("exec_error"),
+                error_type=tracking.get("error_type"),
+                result_rows=result_rows,
+                result_preview=result_preview,
+                retry_count=len(retries_data),
+                retries=retries_data,
+                total_latency_ms=tracking.get("total_latency_ms", 0),
+                tables_used=tables_used,
+                fields=res.get("fields", []),
+                available_table_count=count_available_tables(full_schema),
+                relevant_schema=extract_relevant_schema(full_schema, tables_used),
+                filtered_table_names=filtered_tables,
+            )
+        except Exception as e:
+            logger.error(f"追踪记录写入失败: {e}", exc_info=True)
 
     # 检查是否为错误
     if "error" in res:
@@ -905,6 +1009,7 @@ def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = 
         env = DataBaseEnv(db_source)
 
         # Schema 过滤（如果启用）
+        filtered_table_names = []
         if schema_filter_enabled:
             try:
                 retriever = get_schema_retriever(db_source)
@@ -913,6 +1018,7 @@ def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = 
                     database=global_db_config.get("database"),
                     system_prefix=global_system_prefix
                 )
+                filtered_table_names = table_names[:]
                 logger.info(f"Schema 过滤：检索到 {len(table_names)} 个表: {table_names}")
                 env.mschema_str = sub_schema
             except Exception as e:
@@ -920,6 +1026,46 @@ def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = 
 
         # 执行 SQL 查询（使用剥离路径后的查询文本）
         res = sql_gen_and_execute(env, sql_query)
+
+        # --- 记录追踪数据 ---
+        tracking = res.pop("_tracking", {})
+        if tracking:
+            try:
+                tracker = get_query_tracker()
+                retries_data = tracking.get("retries", [])
+                if retries_data:
+                    exec_success = retries_data[-1].get("success", False)
+                else:
+                    exec_success = tracking.get("exec_error") is None
+                rows = res.get("truncated_results", [])
+                result_rows = len(rows) if isinstance(rows, list) else 0
+                full_schema = tracking.get("schema_used", "")
+                tables_used = tracking.get("tables_used", [])
+                retries_data = tracking.get("retries", [])
+                tracker.record_query(
+                    nl_query=query,
+                    tool="query_and_upload_to_hdfs",
+                    database=global_db_config.get("database", ""),
+                    dialect=dialect,
+                    hdfs_path=hdfs_path,
+                    schema_filtered=schema_filter_enabled,
+                    initial_sql=tracking.get("initial_sql", ""),
+                    exec_success=exec_success,
+                    exec_error=tracking.get("exec_error"),
+                    error_type=tracking.get("error_type"),
+                    result_rows=result_rows,
+                    result_preview=None,
+                    retry_count=len(retries_data),
+                    retries=retries_data,
+                    total_latency_ms=tracking.get("total_latency_ms", 0),
+                    tables_used=tables_used,
+                    fields=res.get("fields", []),
+                    available_table_count=count_available_tables(full_schema),
+                    relevant_schema=extract_relevant_schema(full_schema, tables_used),
+                    filtered_table_names=filtered_table_names,
+                )
+            except Exception as e:
+                logger.error(f"追踪记录写入失败(hdfs): {e}", exc_info=True)
 
         # 检查是否为错误
         if "error" in res:

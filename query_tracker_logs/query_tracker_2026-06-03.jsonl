@@ -1,0 +1,1890 @@
+{
+  "timestamp": "2026-06-03T00:34:07.920415",
+  "tool": "get_data",
+  "nl_query": "查询今天同时满足租户客户端证书过期时间戳较高且UI证书过期时间戳较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT cct.node_id FROM cockroach_metrics.security_certificate_expiration_client_tenant cct JOIN cockroach_metrics.security_certificate_expiration_client cui ON cct.node_id = cui.node_id WHERE cct.greptime_timestamp = ( SELECT MAX(greptime_timestamp) FROM cockroach_metrics.security_certificate_expiration_client_tenant ) AND cui.greptime_timestamp = ( SELECT MAX(greptime_timestamp) FROM cockroach_metrics.security_certificate_expiration_client );",
+  "exec_success": false,
+  "exec_error": "Can't reconnect until invalid transaction is rolled back. (Background on this error at: https://sqlalche.me/e/14/8s2b)",
+  "error_type": "PendingRollbackError",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "",
+  "filtered_table_names": [
+    "cockroach_metrics.security_certificate_expiration_client_tenant",
+    "cockroach_metrics.security_certificate_expiration_node_client",
+    "cockroach_metrics.security_certificate_expiration_ca_client_tenant",
+    "cockroach_metrics.security_certificate_ttl_node_client",
+    "cockroach_metrics.security_certificate_expiration_client"
+  ],
+  "tables_used": [],
+  "total_latency_ms": 5775700.33
+}
+{
+  "timestamp": "2026-06-03T00:34:35.736817",
+  "tool": "get_data",
+  "nl_query": "查询最近12小时每个 node_id 的副本处理平均CPU耗时与再平衡Lease转移次数比值",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT AVG(r1.greptime_value) / AVG(r2.greptime_value) AS ratio FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum r1 JOIN cockroach_metrics.rebalancing_replicas_cpunanospersecond_count r2 ON r1.node_id = r2.node_id AND r1.store = r2.store WHERE r1.greptime_timestamp >= NOW() - INTERVAL '12 hours' AND r2.greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "55834.11180545682"
+    ]
+  ],
+  "fields": [
+    "ratio"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.rebalancing_replicas_cpunanospersecond_count\n[\n(greptime_value:DOUBLE, Examples: [160500.0, 161100.0, 161400.0]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:23:51.590000]),\n(job:VARCHAR, Examples: [cockroachdb])\n]\n# Table: cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [17172240163.690002, 17182665923.27124, 17187876933.95142]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.rebalancing_cpunanospersecond",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_count",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_bucket",
+    "cockroach_metrics.rebalancing_replicas_queriespersecond_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_count",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum"
+  ],
+  "total_latency_ms": 6410.42
+}
+{
+  "timestamp": "2026-06-03T00:34:52.910930",
+  "tool": "get_data",
+  "nl_query": "查询副本处理平均CPU耗时平均值最高的那个 node_id 在表 rebalancing_cpunanospersecond 中的所有最近24小时数据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value. Valid fields are cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "other",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value. Valid fields are cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value. Valid fields are cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value. Valid fields are cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value. Valid fields are cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value. Valid fields are cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.rebalancing_cpunanospersecond WHERE node_id = ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '24 HOURS';",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.rebalancing_cpunanospersecond\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_value:DOUBLE, Examples: [5211010.680187262, 5205726.672497645, 5196579.347999835]),\n(store:VARCHAR, Examples: [3, 4, 2])\n]\n# Table: cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(greptime_value:DOUBLE, Examples: [17172240163.690002, 17182665923.27124, 17187876933.95142])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.rebalancing_cpunanospersecond",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_bucket",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_count",
+    "cockroach_metrics.rebalancing_replicas_queriespersecond_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.rebalancing_cpunanospersecond",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum"
+  ],
+  "total_latency_ms": 11995.3
+}
+{
+  "timestamp": "2026-06-03T00:35:27.459829",
+  "tool": "get_data",
+  "nl_query": "查询最近7天同时满足副本处理平均CPU耗时较高且再平衡Lease转移次数较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) DataFusion error: Schema contains qualified field name __scalar_sq_1.\"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" and unqualified field name \"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" which would be ambiguous\n\n[SQL: SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "join_error",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: Schema contains qualified field name __scalar_sq_1.\"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" and unqualified field name \"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" which would be ambiguous\n\n[SQL: SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: Schema contains qualified field name __scalar_sq_1.\"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" and unqualified field name \"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" which would be ambiguous\n\n[SQL: SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: Schema contains qualified field name __scalar_sq_1.\"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" and unqualified field name \"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" which would be ambiguous\n\n[SQL: SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: Schema contains qualified field name __scalar_sq_1.\"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" and unqualified field name \"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" which would be ambiguous\n\n[SQL: SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: Schema contains qualified field name __scalar_sq_1.\"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" and unqualified field name \"avg(cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum.greptime_value)\" which would be ambiguous\n\n[SQL: SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING AVG(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_cpu_nodes INTERSECT SELECT DISTINCT node_id FROM ( SELECT node_id FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY node_id HAVING SUM(greptime_value) > (SELECT AVG(greptime_value) FROM cockroach_metrics.rebalancing_replicas_queriespersecond_sum WHERE greptime_timestamp >= NOW() - INTERVAL '7 days') ) AS high_lease_transfer_nodes;",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum\n[\n(greptime_value:DOUBLE, Examples: [17172240163.690002, 17182665923.27124, 17187876933.95142]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080])\n]\n# Table: cockroach_metrics.rebalancing_replicas_queriespersecond_sum\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [17666.66626293213, 17691.800120813597, 17737.022977337012]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(store:VARCHAR, Examples: [3, 4, 2])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.rebalancing_cpunanospersecond",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_bucket",
+    "cockroach_metrics.rebalancing_queriespersecond",
+    "cockroach_metrics.rebalancing_replicas_queriespersecond_sum",
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.rebalancing_replicas_cpunanospersecond_sum",
+    "cockroach_metrics.rebalancing_replicas_queriespersecond_sum"
+  ],
+  "total_latency_ms": 28066.43
+}
+{
+  "timestamp": "2026-06-03T00:35:44.183917",
+  "tool": "get_data",
+  "nl_query": "对比表 sys_host_disk_read_count_total 和 sys_host_disk_write_bytes_total 在今天同一 node_id 上的每小时指标变化",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT r.node_id, DATE_TRUNC('hour', r.greptime_timestamp) AS hour, AVG(r.greptime_value) AS avg_read_count, AVG(w.greptime_value) AS avg_write_bytes FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.sys_host_disk_write_bytes_total w ON r.node_id = w.node_id AND DATE_TRUNC('hour', r.greptime_timestamp) = DATE_TRUNC('hour', w.greptime_timestamp) WHERE r.greptime_timestamp >= CURRENT_DATE AND w.greptime_timestamp >= CURRENT_DATE GROUP BY r.node_id, DATE_TRUNC('hour', r.greptime_timestamp) ORDER BY r.node_id, hour;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "2",
+      "2026-06-03 00:00:00",
+      "2272.2",
+      "1343360204.8"
+    ],
+    [
+      "3",
+      "2026-06-03 00:00:00",
+      "3845155.6666666665",
+      "563312114176.0"
+    ],
+    [
+      "4",
+      "2026-06-03 00:00:00",
+      "3853343.6",
+      "563645101260.8"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "hour",
+    "avg_read_count",
+    "avg_write_bytes"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_host_disk_read_count_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_value:DOUBLE, Examples: [363821.0, 363853.0, 363888.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_host_disk_read_time_total",
+    "cockroach_metrics.sys_host_disk_read_count_total",
+    "cockroach_metrics.sys_host_disk_read_bytes_total",
+    "cockroach_metrics.sys_host_disk_write_count_total",
+    "cockroach_metrics.storage_disk_read_time_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_host_disk_read_count_total",
+    "cockroach_metrics.sys_host_disk_write_bytes_total"
+  ],
+  "total_latency_ms": 6747.27
+}
+{
+  "timestamp": "2026-06-03T00:36:04.173217",
+  "tool": "get_data",
+  "nl_query": "查询昨天每个 node_id 的磁盘累计读取操作数与磁盘累计写入字节数比值",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT r.node_id, SUM(r.greptime_value) / SUM(w.greptime_value) AS read_to_write_ratio FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_read_bytes_total w ON r.node_id = w.node_id AND DATE(r.greptime_timestamp) = DATE(w.greptime_timestamp) WHERE DATE(r.greptime_timestamp) = CURRENT_DATE - INTERVAL '1 DAY' GROUP BY r.node_id;",
+  "exec_success": true,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: Invalid function 'date'.\nDid you mean 'rate'?\n\n[SQL: SELECT r.node_id, SUM(r.greptime_value) / SUM(w.greptime_value) AS read_to_write_ratio FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_read_bytes_total w ON r.node_id = w.node_id AND DATE(r.greptime_timestamp) = DATE(w.greptime_timestamp) WHERE DATE(r.greptime_timestamp) = CURRENT_DATE - INTERVAL '1 DAY' GROUP BY r.node_id;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "join_error",
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "3",
+      "inf"
+    ],
+    [
+      "4",
+      "inf"
+    ],
+    [
+      "2",
+      "inf"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "read_to_write_ratio"
+  ],
+  "retry_count": 1,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT r.node_id, SUM(r.greptime_value) / SUM(w.greptime_value) AS read_to_write_ratio FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_read_bytes_total w ON r.node_id = w.node_id AND DATE(r.greptime_timestamp) = DATE(w.greptime_timestamp) WHERE DATE(r.greptime_timestamp) = CURRENT_DATE - INTERVAL '1 DAY' GROUP BY r.node_id;",
+      "error_msg": "",
+      "repaired_sql": "SELECT r.node_id, SUM(r.greptime_value) / SUM(w.greptime_value) AS read_to_write_ratio FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_read_bytes_total w ON r.node_id = w.node_id AND r.greptime_timestamp::DATE = w.greptime_timestamp::DATE WHERE r.greptime_timestamp::DATE = CURRENT_DATE - INTERVAL '1 DAY' GROUP BY r.node_id;",
+      "success": true
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_host_disk_read_count_total\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [363821.0, 363853.0, 363888.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]\n# Table: cockroach_metrics.storage_disk_read_bytes_total\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:23:51.590000]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(store:VARCHAR, Examples: [3, 4, 2])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_host_disk_read_count_total",
+    "cockroach_metrics.storage_disk_read_time_total",
+    "cockroach_metrics.storage_disk_read_count_total",
+    "cockroach_metrics.sys_host_disk_read_bytes_total",
+    "cockroach_metrics.storage_disk_read_bytes_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.storage_disk_read_bytes_total",
+    "cockroach_metrics.sys_host_disk_read_count_total"
+  ],
+  "total_latency_ms": 12044.84
+}
+{
+  "timestamp": "2026-06-03T00:36:25.279401",
+  "tool": "get_data",
+  "nl_query": "查询最近1小时同时满足磁盘累计读取操作数较高且磁盘累计写入字节数较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions r.greptime_valuew.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "join_error",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions r.greptime_valuew.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions r.greptime_valuew.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions r.greptime_valuew.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions r.greptime_valuew.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions r.greptime_valuew.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT r.node_id FROM cockroach_metrics.sys_host_disk_read_count_total r JOIN cockroach_metrics.storage_disk_io_time_total w ON r.node_id = w.node_id WHERE r.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND w.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY r.greptime_value DESC, w.greptime_value DESC LIMIT 10;",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.storage_disk_io_time_total\n[\n(store:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [0.0, nan]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(node_id:VARCHAR, Examples: [3, 4, 2])\n]\n# Table: cockroach_metrics.sys_host_disk_read_count_total\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [363821.0, 363853.0, 363888.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.storage_disk_read_time_total",
+    "cockroach_metrics.sys_host_disk_read_time_total",
+    "cockroach_metrics.sys_host_disk_read_count_total",
+    "cockroach_metrics.sys_host_disk_io_time_total",
+    "cockroach_metrics.storage_disk_io_time_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.storage_disk_io_time_total",
+    "cockroach_metrics.sys_host_disk_read_count_total"
+  ],
+  "total_latency_ms": 13759.66
+}
+{
+  "timestamp": "2026-06-03T00:36:44.494417",
+  "tool": "get_data",
+  "nl_query": "对比表 admission_wait_durations_kv_count 和 admission_wait_durations_kv_stores_count 在最近3小时同一 node_id 上的每小时指标变化",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT a.greptime_timestamp AS kv_count_timestamp, a.greptime_value AS kv_count_value, b.greptime_timestamp AS kv_stores_count_timestamp, b.greptime_value AS kv_stores_count_value FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id AND DATE_TRUNC('hour', a.greptime_timestamp) = DATE_TRUNC('hour', b.greptime_timestamp) WHERE a.greptime_timestamp >= NOW() - INTERVAL '3 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '3 hours' ORDER BY a.node_id, a.greptime_timestamp;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 50000,
+  "result_preview": [
+    [
+      "2026-06-02 21:36:48.802000",
+      "12385.0",
+      "2026-06-02 21:48:03.802000",
+      "14836.0"
+    ],
+    [
+      "2026-06-02 21:36:48.802000",
+      "12385.0",
+      "2026-06-02 21:37:33.802000",
+      "10375.0"
+    ],
+    [
+      "2026-06-02 21:36:48.802000",
+      "12385.0",
+      "2026-06-02 21:37:48.802000",
+      "10504.0"
+    ]
+  ],
+  "fields": [
+    "kv_count_timestamp",
+    "kv_count_value",
+    "kv_stores_count_timestamp",
+    "kv_stores_count_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.admission_wait_durations_kv_count\n[\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(greptime_value:DOUBLE, Examples: [263407.0, 263591.0, 263735.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]\n# Table: cockroach_metrics.admission_wait_durations_kv_stores_count\n[\n(greptime_value:DOUBLE, Examples: [79206.0, 79272.0, 79410.0]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(job:VARCHAR, Examples: [cockroachdb])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.admission_wait_durations_kv_stores_count",
+    "cockroach_metrics.admission_wait_durations_kv_stores_sum",
+    "cockroach_metrics.admission_wait_durations_kv_sum",
+    "cockroach_metrics.admission_wait_durations_kv_count",
+    "cockroach_metrics.admission_wait_durations_sql_kv_response_count"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_wait_durations_kv_count",
+    "cockroach_metrics.admission_wait_durations_kv_stores_count"
+  ],
+  "total_latency_ms": 7996.26
+}
+{
+  "timestamp": "2026-06-03T00:37:03.113467",
+  "tool": "get_data",
+  "nl_query": "查询最近6小时每个 node_id 的KV层准入等待时长采样数与KV存储层准入等待时长采样数比值",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT kv.node_id, (kv.greptime_value / kv_store.greptime_value) AS ratio FROM cockroach_metrics.admission_wait_durations_kv_count kv JOIN cockroach_metrics.admission_wait_durations_kv_stores_count kv_store ON kv.node_id = kv_store.node_id WHERE kv.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND kv_store.greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 50000,
+  "result_preview": [
+    [
+      "3",
+      "0.9345958782804701"
+    ],
+    [
+      "3",
+      "0.9346900660119144"
+    ],
+    [
+      "3",
+      "0.9347971341168894"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "ratio"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.admission_wait_durations_kv_count\n[\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(greptime_value:DOUBLE, Examples: [263407.0, 263591.0, 263735.0]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb])\n]\n# Table: cockroach_metrics.admission_wait_durations_kv_stores_count\n[\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [79206.0, 79272.0, 79410.0]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.admission_wait_durations_kv_stores_count",
+    "cockroach_metrics.admission_wait_durations_kv_count",
+    "cockroach_metrics.admission_wait_durations_sql_kv_response_count",
+    "cockroach_metrics.admission_wait_durations_kv_stores_normal_pri_count",
+    "cockroach_metrics.admission_wait_durations_kv_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_wait_durations_kv_count",
+    "cockroach_metrics.admission_wait_durations_kv_stores_count"
+  ],
+  "total_latency_ms": 11941.55
+}
+{
+  "timestamp": "2026-06-03T00:37:20.059937",
+  "tool": "get_data",
+  "nl_query": "查询KV层准入等待时长采样数平均值最高的那个 node_id 在表 admission_wait_durations_kv_count 中的所有最近12小时数据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.admission_wait_durations_kv_count.greptime_value. Valid fields are cockroach_metrics.admission_wait_durations_kv_count.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "other",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.admission_wait_durations_kv_count.greptime_value. Valid fields are cockroach_metrics.admission_wait_durations_kv_count.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.admission_wait_durations_kv_count.greptime_value. Valid fields are cockroach_metrics.admission_wait_durations_kv_count.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.admission_wait_durations_kv_count.greptime_value. Valid fields are cockroach_metrics.admission_wait_durations_kv_count.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.admission_wait_durations_kv_count.greptime_value. Valid fields are cockroach_metrics.admission_wait_durations_kv_count.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.admission_wait_durations_kv_count.greptime_value. Valid fields are cockroach_metrics.admission_wait_durations_kv_count.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.admission_wait_durations_kv_count WHERE node_id = ( SELECT node_id FROM cockroach_metrics.admission_wait_durations_kv_count GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '12 hours';",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.admission_wait_durations_kv_count\n[\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_value:DOUBLE, Examples: [263407.0, 263591.0, 263735.0]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.admission_wait_durations_kv_count",
+    "cockroach_metrics.admission_wait_durations_kv_stores_count",
+    "cockroach_metrics.admission_wait_durations_kv_sum",
+    "cockroach_metrics.admission_wait_durations_sql_kv_response_count",
+    "cockroach_metrics.admission_wait_durations_kv_normal_pri_count"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_wait_durations_kv_count"
+  ],
+  "total_latency_ms": 10854.48
+}
+{
+  "timestamp": "2026-06-03T00:37:43.757046",
+  "tool": "get_data",
+  "nl_query": "查询最近24小时同时满足KV层准入等待时长采样数较高且KV存储层准入等待时长采样数较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions a.greptime_valueb.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "join_error",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions a.greptime_valueb.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions a.greptime_valueb.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions a.greptime_valueb.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions a.greptime_valueb.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: For SELECT DISTINCT, ORDER BY expressions a.greptime_valueb.greptime_value must appear in select list\n\n[SQL: SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT DISTINCT a.node_id FROM cockroach_metrics.admission_wait_durations_kv_count a JOIN cockroach_metrics.admission_wait_durations_kv_stores_count b ON a.node_id = b.node_id WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' AND b.greptime_timestamp >= NOW() - INTERVAL '24 hours' ORDER BY a.greptime_value DESC, b.greptime_value DESC LIMIT 10;",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.admission_wait_durations_kv_count\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [263407.0, 263591.0, 263735.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080])\n]\n# Table: cockroach_metrics.admission_wait_durations_kv_stores_count\n[\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [79206.0, 79272.0, 79410.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.admission_wait_durations_kv_stores_count",
+    "cockroach_metrics.admission_wait_durations_kv_stores_normal_pri_sum",
+    "cockroach_metrics.admission_wait_durations_kv_stores_high_pri_sum",
+    "cockroach_metrics.admission_wait_durations_kv_count",
+    "cockroach_metrics.admission_wait_durations_kv_stores_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_wait_durations_kv_count",
+    "cockroach_metrics.admission_wait_durations_kv_stores_count"
+  ],
+  "total_latency_ms": 14771.42
+}
+{
+  "timestamp": "2026-06-03T01:04:21.150864",
+  "tool": "get_data",
+  "nl_query": "查询用户态CPU时间平均值最高的那个 node_id 在表 sys_cpu_user_ns_total 中的所有昨天数据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_cpu_user_ns_total.greptime_value. Valid fields are cockroach_metrics.sys_cpu_user_ns_total.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "other",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_cpu_user_ns_total.greptime_value. Valid fields are cockroach_metrics.sys_cpu_user_ns_total.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_cpu_user_ns_total.greptime_value. Valid fields are cockroach_metrics.sys_cpu_user_ns_total.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_cpu_user_ns_total.greptime_value. Valid fields are cockroach_metrics.sys_cpu_user_ns_total.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_cpu_user_ns_total.greptime_value. Valid fields are cockroach_metrics.sys_cpu_user_ns_total.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_cpu_user_ns_total.greptime_value. Valid fields are cockroach_metrics.sys_cpu_user_ns_total.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_cpu_user_ns_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD');",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_cpu_user_ns_total\n[\n(greptime_value:DOUBLE, Examples: [461160000000.0, 461420000000.0, 462720000000.0]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 23:34:18.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_cpu_user_ns_total",
+    "cockroach_metrics.sys_cpu_now_ns_total",
+    "cockroach_metrics.sys_cpu_sys_ns_total",
+    "cockroach_metrics.sys_cpu_user_percent",
+    "cockroach_metrics.rebalancing_cpunanospersecond"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_cpu_user_ns_total"
+  ],
+  "total_latency_ms": 16918.87
+}
+{
+  "timestamp": "2026-06-03T01:04:36.836165",
+  "tool": "get_data",
+  "nl_query": "查询2026-06-01 到 2026-06-02同时满足用户态CPU时间较高且用户态CPU使用率较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT node_id FROM cockroach_metrics.sys_cpu_user_ns_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' AND greptime_value > (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_user_ns_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59') INTERSECT SELECT DISTINCT node_id FROM cockroach_metrics.sys_cpu_user_percent WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' AND greptime_value > (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_user_percent WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59')",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "2"
+    ],
+    [
+      "3"
+    ],
+    [
+      "4"
+    ]
+  ],
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_cpu_user_percent\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [0.026997430133523792, 0.09700064481178639, 0.023998567273534485])\n]\n# Table: cockroach_metrics.sys_cpu_user_ns_total\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 23:34:18.801000]),\n(greptime_value:DOUBLE, Examples: [461160000000.0, 461420000000.0, 462720000000.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_cpu_user_ns_total",
+    "cockroach_metrics.sys_cpu_user_percent",
+    "cockroach_metrics.sys_cpu_now_ns_total",
+    "cockroach_metrics.rebalancing_cpunanospersecond",
+    "cockroach_metrics.admission_elastic_cpu_over_limit_durations_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_cpu_user_ns_total",
+    "cockroach_metrics.sys_cpu_user_percent"
+  ],
+  "total_latency_ms": 8661.02
+}
+{
+  "timestamp": "2026-06-03T01:04:56.381362",
+  "tool": "get_data",
+  "nl_query": "对比表 jobs_create_stats_currently_running 和 jobs_row_level_ttl_delete_duration_count 在最近1小时同一 node_id 上的每小时指标变化",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT jcr.node_id, jcr.greptime_timestamp AS jcr_timestamp, jcr.greptime_value AS jcr_value, jrd.greptime_timestamp AS jrd_timestamp, jrd.greptime_value AS jrd_value FROM cockroach_metrics.jobs_create_stats_currently_running jcr JOIN cockroach_metrics.jobs_row_level_ttl_delete_duration_count jrd ON jcr.node_id = jrd.node_id WHERE jcr.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND jrd.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY jcr.node_id, jcr.greptime_timestamp;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 44411,
+  "result_preview": [
+    [
+      "2",
+      "2026-06-03 00:34:33.802000",
+      "0.0",
+      "2026-06-03 00:41:48.802000",
+      "0.0"
+    ],
+    [
+      "2",
+      "2026-06-03 00:34:33.802000",
+      "0.0",
+      "2026-06-03 00:35:18.802000",
+      "0.0"
+    ],
+    [
+      "2",
+      "2026-06-03 00:34:33.802000",
+      "0.0",
+      "2026-06-03 00:35:33.802000",
+      "0.0"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "jcr_timestamp",
+    "jcr_value",
+    "jrd_timestamp",
+    "jrd_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "",
+  "filtered_table_names": [
+    "cockroach_metrics.jobs_row_level_ttl_currently_running",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_count",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_sum",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_bucket",
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.jobs_create_stats_currently_running",
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_count"
+  ],
+  "total_latency_ms": 6607.5
+}
+{
+  "timestamp": "2026-06-03T01:05:09.377637",
+  "tool": "get_data",
+  "nl_query": "查询最近3小时每个 node_id 的创建统计运行中作业数与行级TTL删除耗时采样数比值",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT j.node_id, (j.greptime_value / d.greptime_value) AS ratio FROM cockroach_metrics.jobs_row_level_ttl_select_duration_count j JOIN cockroach_metrics.jobs_row_level_ttl_delete_duration_count d ON j.node_id = d.node_id WHERE j.greptime_timestamp >= NOW() - INTERVAL '3 hours' AND d.greptime_timestamp >= NOW() - INTERVAL '3 hours';",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 50000,
+  "result_preview": [
+    [
+      "2",
+      "nan"
+    ],
+    [
+      "2",
+      "nan"
+    ],
+    [
+      "2",
+      "nan"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "ratio"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.jobs_row_level_ttl_select_duration_count\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]\n# Table: cockroach_metrics.jobs_row_level_ttl_delete_duration_count\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_count",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_count",
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_sum",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_sum",
+    "cockroach_metrics.jobs_row_level_ttl_span_total_duration_count"
+  ],
+  "tables_used": [
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_count",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_count"
+  ],
+  "total_latency_ms": 5165.85
+}
+{
+  "timestamp": "2026-06-03T01:05:31.592877",
+  "tool": "get_data",
+  "nl_query": "查询创建统计运行中作业数平均值最高的那个 node_id 在表 jobs_create_stats_currently_running 中的所有最近6小时数据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.jobs_create_stats_currently_running.greptime_value. Valid fields are cockroach_metrics.jobs_create_stats_currently_running.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "other",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.jobs_create_stats_currently_running.greptime_value. Valid fields are cockroach_metrics.jobs_create_stats_currently_running.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.jobs_create_stats_currently_running.greptime_value. Valid fields are cockroach_metrics.jobs_create_stats_currently_running.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.jobs_create_stats_currently_running.greptime_value. Valid fields are cockroach_metrics.jobs_create_stats_currently_running.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.jobs_create_stats_currently_running.greptime_value. Valid fields are cockroach_metrics.jobs_create_stats_currently_running.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.jobs_create_stats_currently_running.greptime_value. Valid fields are cockroach_metrics.jobs_create_stats_currently_running.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.jobs_create_stats_currently_running WHERE node_id = ( SELECT node_id FROM cockroach_metrics.jobs_create_stats_currently_running GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.jobs_create_stats_currently_running\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.jobs_create_stats_currently_running",
+    "cockroach_metrics.jobs_auto_create_stats_currently_running",
+    "cockroach_metrics.jobs_auto_create_partial_stats_currently_running",
+    "cockroach_metrics.jobs_poll_jobs_stats_currently_running",
+    "cockroach_metrics.jobs_running_non_idle"
+  ],
+  "tables_used": [
+    "cockroach_metrics.jobs_create_stats_currently_running"
+  ],
+  "total_latency_ms": 10294.04
+}
+{
+  "timestamp": "2026-06-03T01:05:46.390406",
+  "tool": "get_data",
+  "nl_query": "查询最近12小时同时满足创建统计运行中作业数较高且行级TTL删除耗时采样数较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT node_id FROM cockroach_metrics.jobs_row_level_ttl_delete_duration_count WHERE greptime_timestamp >= NOW() - INTERVAL '12 hours' AND greptime_value > (SELECT AVG(greptime_value) + 2 * STDDEV(greptime_value) FROM cockroach_metrics.jobs_row_level_ttl_delete_duration_count WHERE greptime_timestamp >= NOW() - INTERVAL '12 hours') INTERSECT SELECT DISTINCT node_id FROM cockroach_metrics.jobs_row_level_ttl_select_duration_count WHERE greptime_timestamp >= NOW() - INTERVAL '12 hours' AND greptime_value > (SELECT AVG(greptime_value) + 2 * STDDEV(greptime_value) FROM cockroach_metrics.jobs_row_level_ttl_select_duration_count WHERE greptime_timestamp >= NOW() - INTERVAL '12 hours');",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.jobs_row_level_ttl_select_duration_count\n[\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]\n# Table: cockroach_metrics.jobs_row_level_ttl_delete_duration_count\n[\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_count",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_count",
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_bucket",
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_sum",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.jobs_row_level_ttl_delete_duration_count",
+    "cockroach_metrics.jobs_row_level_ttl_select_duration_count"
+  ],
+  "total_latency_ms": 5913.07
+}
+{
+  "timestamp": "2026-06-03T01:06:02.436873",
+  "tool": "get_data",
+  "nl_query": "对比表 sys_go_allocbytes 和 sys_gc_pause_ns_total 在最近24小时同一 node_id 上的每小时指标变化",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT a.node_id, DATE_TRUNC('hour', a.greptime_timestamp) AS hour, AVG(a.greptime_value) AS avg_sys_go_allocbytes, AVG(b.greptime_value) AS avg_sys_gc_pause_ns_total FROM cockroach_metrics.sys_go_allocbytes a JOIN cockroach_metrics.sys_gc_pause_ns_total b ON a.node_id = b.node_id AND DATE_TRUNC('hour', a.greptime_timestamp) = DATE_TRUNC('hour', b.greptime_timestamp) WHERE a.greptime_timestamp >= NOW() - INTERVAL '24 hours' GROUP BY a.node_id, DATE_TRUNC('hour', a.greptime_timestamp) ORDER BY a.node_id, hour;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 74,
+  "result_preview": [
+    [
+      "2",
+      "2026-06-02 01:00:00",
+      "500603827.2592593",
+      "64258120.53333333"
+    ],
+    [
+      "2",
+      "2026-06-02 02:00:00",
+      "473047548.4",
+      "66755616.0"
+    ],
+    [
+      "2",
+      "2026-06-02 03:00:00",
+      "467960234.8333333",
+      "69319685.86666666"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "hour",
+    "avg_sys_go_allocbytes",
+    "avg_sys_gc_pause_ns_total"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_gc_pause_ns_total\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:18.801000]),\n(greptime_value:DOUBLE, Examples: [49674112.0, 49752960.0, 49891456.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080])\n]\n# Table: cockroach_metrics.sys_go_allocbytes\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_value:DOUBLE, Examples: [498755792.0, 344532480.0, 144289184.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_gc_pause_percent",
+    "cockroach_metrics.sys_go_heap_allocbytes_total",
+    "cockroach_metrics.sys_gc_pause_ns_total",
+    "cockroach_metrics.sys_go_allocbytes",
+    "cockroach_metrics.sys_cgo_totalbytes"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_gc_pause_ns_total",
+    "cockroach_metrics.sys_go_allocbytes"
+  ],
+  "total_latency_ms": 6095.13
+}
+{
+  "timestamp": "2026-06-03T01:12:41.225344",
+  "tool": "get_data",
+  "nl_query": "查询最近7天每个 node_id 的Go当前分配内存与GC暂停累计时间比值",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT h.node_id, AVG(h.greptime_value / p.greptime_value) AS ratio FROM cockroach_metrics.sys_go_heap_allocbytes_total h JOIN cockroach_metrics.sys_gc_pause_ns_total p ON h.node_id = p.node_id WHERE h.greptime_timestamp >= NOW() - INTERVAL '7 days' AND p.greptime_timestamp >= NOW() - INTERVAL '7 days' GROUP BY h.node_id;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "4",
+      "17398.528428122518"
+    ],
+    [
+      "2",
+      "nan"
+    ],
+    [
+      "3",
+      "15075.565552630529"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "ratio"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_go_heap_allocbytes_total\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [190259903176.0, 191172555200.0, 191278348672.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb])\n]\n# Table: cockroach_metrics.sys_gc_pause_ns_total\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [28768768.0, 28808448.0, 28890112.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_gc_pause_percent",
+    "cockroach_metrics.sys_gc_pause_ns_total",
+    "cockroach_metrics.sys_go_heap_allocbytes_total",
+    "cockroach_metrics.sys_go_totalbytes",
+    "cockroach_metrics.sys_cgo_totalbytes"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_gc_pause_ns_total",
+    "cockroach_metrics.sys_go_heap_allocbytes_total"
+  ],
+  "total_latency_ms": 199177.64
+}
+{
+  "timestamp": "2026-06-03T01:19:37.209670",
+  "tool": "get_data",
+  "nl_query": "查询Go当前分配内存平均值最高的那个 node_id 在表 sys_go_allocbytes 中的所有今天数据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE DATE(greptime_timestamp) = CURRENT_DATE GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND DATE(greptime_timestamp) = CURRENT_DATE;",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_go_allocbytes.greptime_value. Valid fields are cockroach_metrics.sys_go_allocbytes.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "function_not_found",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE DATE(greptime_timestamp) = CURRENT_DATE GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND DATE(greptime_timestamp) = CURRENT_DATE;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_go_allocbytes.greptime_value. Valid fields are cockroach_metrics.sys_go_allocbytes.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_go_allocbytes.greptime_value. Valid fields are cockroach_metrics.sys_go_allocbytes.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_go_allocbytes.greptime_value. Valid fields are cockroach_metrics.sys_go_allocbytes.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_go_allocbytes.greptime_value. Valid fields are cockroach_metrics.sys_go_allocbytes.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) DataFusion error: No field named cockroach_metrics.sys_go_allocbytes.greptime_value. Valid fields are cockroach_metrics.sys_go_allocbytes.node_id.\n\n[SQL: SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.sys_go_allocbytes WHERE node_id = ( SELECT node_id FROM cockroach_metrics.sys_go_allocbytes WHERE TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD') GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND TO_CHAR(greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE, 'YYYYMMDD');",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_go_allocbytes\n[\n(greptime_value:DOUBLE, Examples: [498755792.0, 344532480.0, 144289184.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_go_allocbytes",
+    "cockroach_metrics.sys_go_totalbytes",
+    "cockroach_metrics.sys_go_heap_allocbytes_total",
+    "cockroach_metrics.sys_cgo_allocbytes",
+    "cockroach_metrics.sys_cgo_totalbytes"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_go_allocbytes"
+  ],
+  "total_latency_ms": 14644.29
+}
+{
+  "timestamp": "2026-06-03T01:19:50.197216",
+  "tool": "get_data",
+  "nl_query": "查询昨天同时满足Go当前分配内存较高且GC暂停累计时间较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT node_id FROM cockroach_metrics.sys_go_heap_allocbytes_total WHERE greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_value > (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_go_heap_allocbytes_total WHERE greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day') INTERSECT SELECT DISTINCT node_id FROM cockroach_metrics.sys_gc_pause_ns_total WHERE greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_value > (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_gc_pause_ns_total WHERE greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day')",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "2"
+    ],
+    [
+      "3"
+    ],
+    [
+      "4"
+    ]
+  ],
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_gc_pause_ns_total\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [28768768.0, 28808448.0, 28890112.0]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]\n# Table: cockroach_metrics.sys_go_heap_allocbytes_total\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [191326453176.0, 191708146400.0, 191789175832.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_gc_pause_percent",
+    "cockroach_metrics.sys_gc_pause_ns_total",
+    "cockroach_metrics.sys_gc_count_total",
+    "cockroach_metrics.sys_go_heap_allocbytes_total",
+    "cockroach_metrics.sys_cgo_totalbytes"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_gc_pause_ns_total",
+    "cockroach_metrics.sys_go_heap_allocbytes_total"
+  ],
+  "total_latency_ms": 5241.25
+}
+{
+  "timestamp": "2026-06-03T01:20:39.142928",
+  "tool": "get_data",
+  "nl_query": "对比表 schedules_BACKUP_failed_total 和 schedules_scheduled_row_level_ttl_executor_failed_total 在2026-06-01 到 2026-06-02同一 node_id 上的每小时指标变化",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+  "error_type": "table_not_found",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT a.node_id, a.hour, a.backup_failed, b.ttl_executor_failed FROM ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS backup_failed FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) a JOIN ( SELECT node_id, DATE_TRUNC('hour', greptime_timestamp) AS hour, SUM(greptime_value) AS ttl_executor_failed FROM cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total WHERE greptime_timestamp BETWEEN '2026-06-01 00:00:00' AND '2026-06-02 23:59:59' GROUP BY node_id, DATE_TRUNC('hour', greptime_timestamp) ) b ON a.node_id = b.node_id AND a.hour = b.hour ORDER BY a.node_id, a.hour;",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]\n# Table: cockroach_metrics.schedules_BACKUP_failed_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total",
+    "cockroach_metrics.schedules_backup_failed_total",
+    "cockroach_metrics.schedules_scheduled_row_level_ttl_executor_succeeded_total",
+    "cockroach_metrics.schedules_backup_started_total",
+    "cockroach_metrics.jobs_row_level_ttl_fail_or_cancel_completed_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.schedules_BACKUP_failed_total",
+    "cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total"
+  ],
+  "total_latency_ms": 36427.87
+}
+{
+  "timestamp": "2026-06-03T01:21:00.691602",
+  "tool": "get_data",
+  "nl_query": "查询最近1小时每个 node_id 的BACKUP备份调度失败次数与行级TTL调度执行失败次数比值",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+  "error_type": "table_not_found",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT b.node_id, (b.greptime_value / t.greptime_value) AS ratio FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total t ON b.node_id = t.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND t.greptime_timestamp >= NOW() - INTERVAL '1 HOUR';",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total\n[\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb])\n]\n# Table: cockroach_metrics.schedules_BACKUP_failed_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.schedules_backup_failed_total",
+    "cockroach_metrics.schedules_backup_started_total",
+    "cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total",
+    "cockroach_metrics.jobs_backup_fail_or_cancel_failed_total",
+    "cockroach_metrics.schedules_backup_succeeded_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.schedules_BACKUP_failed_total",
+    "cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total"
+  ],
+  "total_latency_ms": 13635.03
+}
+{
+  "timestamp": "2026-06-03T01:21:17.413112",
+  "tool": "get_data",
+  "nl_query": "查询BACKUP备份调度失败次数平均值最高的那个 node_id 在表 schedules_BACKUP_failed_total 中的所有最近3小时数据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+  "error_type": "table_not_found",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT * FROM cockroach_metrics.schedules_BACKUP_failed_total WHERE node_id = ( SELECT node_id FROM cockroach_metrics.schedules_BACKUP_failed_total GROUP BY node_id ORDER BY AVG(greptime_value) DESC LIMIT 1 ) AND greptime_timestamp >= NOW() - INTERVAL '3 HOURS';",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.schedules_BACKUP_failed_total\n[\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.schedules_backup_failed_total",
+    "cockroach_metrics.schedules_backup_started_total",
+    "cockroach_metrics.schedules_backup_succeeded_total",
+    "cockroach_metrics.schedules_backup_last_completed_time",
+    "cockroach_metrics.jobs_backup_fail_or_cancel_failed_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.schedules_BACKUP_failed_total"
+  ],
+  "total_latency_ms": 10409.41
+}
+{
+  "timestamp": "2026-06-03T01:21:39.211826",
+  "tool": "get_data",
+  "nl_query": "查询最近6小时同时满足BACKUP备份调度失败次数较高且行级TTL调度执行失败次数较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT b.node_id FROM schedules_BACKUP_failed_total b JOIN schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+  "error_type": "table_not_found",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT DISTINCT b.node_id FROM schedules_BACKUP_failed_total b JOIN schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "error_msg": "(psycopg2.errors.UndefinedTable) Failed to plan SQL: Table not found: greptime.cockroach_metrics.schedules_backup_failed_total\n\n[SQL: SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;]\n(Background on this error at: https://sqlalche.me/e/14/f405)",
+      "repaired_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.schedules_BACKUP_failed_total b JOIN cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total r ON b.node_id = r.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '6 hours' AND r.greptime_timestamp >= NOW() - INTERVAL '6 hours' ORDER BY b.greptime_value DESC, r.greptime_value DESC LIMIT 10;",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0])\n]\n# Table: cockroach_metrics.schedules_BACKUP_failed_total\n[\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.schedules_backup_failed_total",
+    "cockroach_metrics.schedules_scheduled_row_level_ttl_executor_failed_total",
+    "cockroach_metrics.schedules_backup_started_total",
+    "cockroach_metrics.jobs_backup_fail_or_cancel_failed_total",
+    "cockroach_metrics.jobs_row_level_ttl_fail_or_cancel_failed_total"
+  ],
+  "tables_used": [
+    "schedules_BACKUP_failed_total",
+    "schedules_scheduled_row_level_ttl_executor_failed_total"
+  ],
+  "total_latency_ms": 14252.82
+}
+{
+  "timestamp": "2026-06-03T01:28:57.231483",
+  "tool": "get_data",
+  "nl_query": "对比表 sql_exec_latency_count 和 sql_failure_count_total 在最近12小时同一 node_id 上的每小时指标变化",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT a.node_id, TO_CHAR(a.greptime_timestamp, 'YYYY-MM-DD HH24') AS hour, a.greptime_value AS exec_latency_count, b.greptime_value AS failure_count_total FROM cockroach_metrics.sql_service_latency_count a JOIN cockroach_metrics.sql_failure_count_total b ON a.node_id = b.node_id AND TO_CHAR(a.greptime_timestamp, 'YYYY-MM-DD HH24') = TO_CHAR(b.greptime_timestamp, 'YYYY-MM-DD HH24') WHERE a.greptime_timestamp >= NOW() - INTERVAL '12 hours' ORDER BY a.node_id, hour;",
+  "exec_success": false,
+  "exec_error": "Can't reconnect until invalid transaction is rolled back. (Background on this error at: https://sqlalche.me/e/14/8s2b)",
+  "error_type": "PendingRollbackError",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "",
+  "filtered_table_names": [
+    "cockroach_metrics.sql_service_latency_historical_count",
+    "cockroach_metrics.sql_failure_count_total",
+    "cockroach_metrics.sql_service_latency_count",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.sql_service_latency_historical_internal_count"
+  ],
+  "tables_used": [],
+  "total_latency_ms": 427585.68
+}
+{
+  "timestamp": "2026-06-03T01:29:17.226556",
+  "tool": "get_data",
+  "nl_query": "查询SQL执行延迟采样数平均值最高的那个 node_id 在表 sql_exec_latency_count 中的所有最近7天数据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "WITH recent_data AS ( SELECT * FROM cockroach_metrics.sql_exec_latency_count WHERE greptime_timestamp >= CURRENT_DATE - INTERVAL '7 days' ), avg_values AS ( SELECT node_id, AVG(greptime_value) AS avg_value FROM recent_data GROUP BY node_id ) SELECT rd.* FROM recent_data rd JOIN avg_values av ON rd.node_id = av.node_id WHERE av.node_id = (SELECT node_id FROM avg_values ORDER BY avg_value DESC LIMIT 1) ORDER BY rd.greptime_timestamp;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 35188,
+  "result_preview": [
+    [
+      "2026-05-27 00:00:03.801000",
+      "0.0",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2"
+    ],
+    [
+      "2026-05-27 00:00:18.801000",
+      "0.0",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2"
+    ],
+    [
+      "2026-05-27 00:00:33.801000",
+      "0.0",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sql_distsql_exec_latency_count\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0])\n]\n# Table: cockroach_metrics.sql_exec_latency_count\n[\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sql_exec_latency_count",
+    "cockroach_metrics.sql_service_latency_count",
+    "cockroach_metrics.sql_exec_latency_sum",
+    "cockroach_metrics.sql_exec_latency_historical_count",
+    "cockroach_metrics.sql_distsql_exec_latency_count"
+  ],
+  "tables_used": [
+    "avg_values",
+    "cockroach_metrics.sql_exec_latency_count",
+    "recent_data"
+  ],
+  "total_latency_ms": 3604.87
+}
+{
+  "timestamp": "2026-06-03T01:29:28.335714",
+  "tool": "get_data",
+  "nl_query": "查询今天同时满足SQL执行延迟采样数较高且SQL执行失败次数较高的 node_id",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT node_id FROM cockroach_metrics.sql_exec_latency_historical_count WHERE greptime_timestamp >= CURRENT_DATE AND greptime_value > (SELECT AVG(greptime_value) FROM cockroach_metrics.sql_exec_latency_historical_count WHERE greptime_timestamp >= CURRENT_DATE) INTERSECT SELECT DISTINCT node_id FROM cockroach_metrics.sql_failure_count_total WHERE greptime_timestamp >= CURRENT_DATE AND greptime_value > (SELECT AVG(greptime_value) FROM cockroach_metrics.sql_failure_count_total WHERE greptime_timestamp >= CURRENT_DATE);",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sql_failure_count_total\n[\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:18.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]\n# Table: cockroach_metrics.sql_exec_latency_historical_count\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sql_service_latency_count",
+    "cockroach_metrics.sql_service_latency_historical_count",
+    "cockroach_metrics.sql_failure_count_total",
+    "cockroach_metrics.sql_exec_latency_historical_count",
+    "cockroach_metrics.sql_service_latency_sum"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sql_exec_latency_historical_count",
+    "cockroach_metrics.sql_failure_count_total"
+  ],
+  "total_latency_ms": 4588.01
+}
+{
+  "timestamp": "2026-06-03T01:40:18.333136",
+  "tool": "get_data",
+  "nl_query": "对比表 storage_disk_write_bytes_total 和 storage_write_stall_nanos_total 在昨天同一 node_id 上的每小时指标变化",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT s1.node_id, TO_CHAR(s1.greptime_timestamp, 'YYYY-MM-DD HH24:00:00') AS hour, s1.greptime_value AS disk_write_bytes, s2.greptime_value AS write_stall_nanos FROM cockroach_metrics.storage_disk_write_bytes_total s1 JOIN cockroach_metrics.storage_write_stall_nanos_total s2 ON s1.node_id = s2.node_id AND TO_CHAR(s1.greptime_timestamp, 'YYYY-MM-DD HH24:00:00') = TO_CHAR(s2.greptime_timestamp, 'YYYY-MM-DD HH24:00:00') WHERE TO_CHAR(s1.greptime_timestamp, 'YYYYMMDD') = TO_CHAR(CURRENT_DATE - INTERVAL '1 DAY', 'YYYYMMDD') ORDER BY s1.node_id, hour;",
+  "exec_success": false,
+  "exec_error": "Can't reconnect until invalid transaction is rolled back. (Background on this error at: https://sqlalche.me/e/14/8s2b)",
+  "error_type": "PendingRollbackError",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "",
+  "filtered_table_names": [
+    "cockroach_metrics.storage_write_stall_nanos_total",
+    "cockroach_metrics.storage_disk_write_time_total",
+    "cockroach_metrics.storage_write_stalls_total",
+    "cockroach_metrics.sys_host_disk_write_time_total",
+    "cockroach_metrics.rebalancing_writebytespersecond"
+  ],
+  "tables_used": [],
+  "total_latency_ms": 637290.0
+}
+{
+  "timestamp": "2026-06-03T08:21:34.601273",
+  "tool": "get_data",
+  "nl_query": "查询磁盘写入字节数平均值最高的那个 node_id 在表 storage_disk_write_bytes_total 中的所有最近1小时数据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "WITH recent_data AS ( SELECT * FROM cockroach_metrics.storage_disk_write_bytes_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 hour' ), avg_values AS ( SELECT node_id, AVG(greptime_value) AS avg_value FROM recent_data GROUP BY node_id ) SELECT rd.* FROM recent_data rd JOIN avg_values av ON rd.node_id = av.node_id ORDER BY av.avg_value DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "2026-06-03 07:21:36.591000",
+      "0.0",
+      "172.19.19.128:8080",
+      "cockroachdb",
+      "3",
+      "3"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id",
+    "store"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.storage_disk_write_bytes_total\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(node_id:VARCHAR, Examples: [3, 4, 2])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.storage_disk_write_bytes_total",
+    "cockroach_metrics.storage_disk_write_max_bytespersecond",
+    "cockroach_metrics.storage_disk_write_time_total",
+    "cockroach_metrics.sys_host_disk_write_bytes_total",
+    "cockroach_metrics.sys_host_disk_write_time_total"
+  ],
+  "tables_used": [
+    "avg_values",
+    "cockroach_metrics.storage_disk_write_bytes_total",
+    "recent_data"
+  ],
+  "total_latency_ms": 2872.34
+}
+{
+  "timestamp": "2026-06-03T08:21:55.575981",
+  "tool": "get_data",
+  "nl_query": "帮我找出最近1小时可能存在资源瓶颈的 node_id，重点看磁盘累计写入字节数和磁盘累计写入操作数是否同时偏高",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT rw.node_id FROM cockroach_metrics.rebalancing_writebytespersecond rw JOIN cockroach_metrics.sys_host_disk_iopsinprogress di ON rw.node_id = di.node_id WHERE rw.greptime_timestamp >= NOW() - INTERVAL '1 hour' AND di.greptime_timestamp >= NOW() - INTERVAL '1 hour' ORDER BY rw.node_id;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "2"
+    ],
+    [
+      "3"
+    ],
+    [
+      "4"
+    ]
+  ],
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_host_disk_iopsinprogress\n[\n(greptime_value:DOUBLE, Examples: [2.0, 1.0, 4.0]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 23:34:18.801000])\n]\n# Table: cockroach_metrics.rebalancing_writebytespersecond\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [40036.27901745053, 40029.39891454959, 40057.89338028989]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_host_disk_io_time_total",
+    "cockroach_metrics.rebalancing_writebytespersecond",
+    "cockroach_metrics.admission_elastic_cpu_over_limit_durations_count",
+    "cockroach_metrics.sys_host_disk_iopsinprogress",
+    "cockroach_metrics.sys_host_disk_write_time_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.rebalancing_writebytespersecond",
+    "cockroach_metrics.sys_host_disk_iopsinprogress"
+  ],
+  "total_latency_ms": 5258.99
+}
+{
+  "timestamp": "2026-06-03T08:22:15.256849",
+  "tool": "get_data",
+  "nl_query": "最近有没有哪个 node_id 看起来不太健康，请结合磁盘累计写入字节数和磁盘累计写入操作数给出可疑对象",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id FROM cockroach_metrics.rpc_connection_unhealthy ORDER BY greptime_timestamp DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "3"
+    ]
+  ],
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.rpc_connection_unhealthy_nanos\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(greptime_value:DOUBLE, Examples: [nan, 10.0, 403276894863.0]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]\n# Table: cockroach_metrics.rpc_connection_unhealthy\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [nan, 10.0, 4.0]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.rpc_connection_unhealthy_nanos",
+    "cockroach_metrics.up",
+    "cockroach_metrics.liveness_livenodes",
+    "cockroach_metrics.distsender_circuit_breaker_replicas_probes_running",
+    "cockroach_metrics.rpc_connection_unhealthy"
+  ],
+  "tables_used": [
+    "cockroach_metrics.rpc_connection_unhealthy"
+  ],
+  "total_latency_ms": 1246.53
+}
+{
+  "timestamp": "2026-06-03T08:22:31.108648",
+  "tool": "get_data",
+  "nl_query": "排查最近6小时是否有 node_id 出现明显恶化的迹象，参考磁盘累计写入字节数的峰值和磁盘累计写入操作数的增长",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id, MAX(greptime_value) AS max_write_bytes_per_second, COUNT(*) AS write_operations_count FROM cockroach_metrics.rebalancing_writebytespersecond WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' GROUP BY node_id ORDER BY max_write_bytes_per_second DESC, write_operations_count DESC;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "3",
+      "99919.69883194324",
+      "1440"
+    ],
+    [
+      "2",
+      "44958.49481394476",
+      "1440"
+    ],
+    [
+      "4",
+      "41674.206994253385",
+      "1440"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "max_write_bytes_per_second",
+    "write_operations_count"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.rebalancing_writebytespersecond\n[\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [40036.27901745053, 40029.39891454959, 40057.89338028989]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(store:VARCHAR, Examples: [3, 4, 2])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.rpc_connection_unhealthy_nanos",
+    "cockroach_metrics.distsender_rangefeed_retry_node_not_found_total",
+    "cockroach_metrics.rebalancing_writebytespersecond",
+    "cockroach_metrics.kv_prober_write_failures_total",
+    "cockroach_metrics.sql_insights_anomaly_detection_evictions_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.rebalancing_writebytespersecond"
+  ],
+  "total_latency_ms": 2207.79
+}
+{
+  "timestamp": "2026-06-03T08:24:45.592245",
+  "tool": "get_data",
+  "nl_query": "查看最近12小时哪些 node_id 的 磁盘累计写入字节数 已经超过经验阈值，同时关联 磁盘累计写入操作数 判断影响范围",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT w.node_id, w.greptime_value AS write_bytes_total, c.greptime_value AS write_count_total FROM cockroach_metrics.sys_host_disk_write_bytes_total w JOIN cockroach_metrics.sys_host_disk_write_count_total c ON w.node_id = c.node_id AND w.instance = c.instance WHERE w.greptime_timestamp >= NOW() - INTERVAL '12 hours' AND w.greptime_value > 182643463168.0 ORDER BY w.node_id;",
+  "exec_success": false,
+  "exec_error": "Can't reconnect until invalid transaction is rolled back. (Background on this error at: https://sqlalche.me/e/14/8s2b)",
+  "error_type": "PendingRollbackError",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "",
+  "filtered_table_names": [
+    "cockroach_metrics.storage_disk_write_time_total",
+    "cockroach_metrics.sys_host_disk_write_count_total",
+    "cockroach_metrics.sys_host_disk_write_time_total",
+    "cockroach_metrics.storage_disk_write_count_total",
+    "cockroach_metrics.sys_host_disk_write_bytes_total"
+  ],
+  "tables_used": [],
+  "total_latency_ms": 124167.14
+}
+{
+  "timestamp": "2026-06-03T08:25:34.297154",
+  "tool": "get_data",
+  "nl_query": "帮我找出最近7天可能存在资源瓶颈的 node_id，重点看备份运行中作业数和创建统计运行中作业数是否同时偏高",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT DISTINCT b.node_id FROM cockroach_metrics.jobs_backup_currently_idle b JOIN cockroach_metrics.jobs_auto_sql_stats_compaction_currently_idle s ON b.node_id = s.node_id WHERE b.greptime_timestamp >= NOW() - INTERVAL '7 days' AND s.greptime_timestamp >= NOW() - INTERVAL '7 days' AND b.greptime_value > 0 AND s.greptime_value > 0;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.jobs_backup_currently_idle\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0])\n]\n# Table: cockroach_metrics.jobs_auto_sql_stats_compaction_currently_idle\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.jobs_running_non_idle",
+    "cockroach_metrics.jobs_backup_currently_idle",
+    "cockroach_metrics.jobs_auto_sql_stats_compaction_currently_idle",
+    "cockroach_metrics.jobs_poll_jobs_stats_currently_idle",
+    "cockroach_metrics.jobs_hot_ranges_logger_currently_idle"
+  ],
+  "tables_used": [
+    "cockroach_metrics.jobs_auto_sql_stats_compaction_currently_idle",
+    "cockroach_metrics.jobs_backup_currently_idle"
+  ],
+  "total_latency_ms": 4166.49
+}
+{
+  "timestamp": "2026-06-03T09:33:13.161634",
+  "tool": "get_data",
+  "nl_query": "最近有没有哪个 node_id 看起来不太健康，请结合备份运行中作业数和创建统计运行中作业数给出可疑对象",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT jrn.node_id FROM cockroach_metrics.jobs_running_non_idle jrn JOIN cockroach_metrics.distsender_circuit_breaker_replicas_probes_running dcr ON jrn.node_id = dcr.node_id WHERE jrn.greptime_timestamp = (SELECT MAX(greptime_timestamp) FROM cockroach_metrics.jobs_running_non_idle) AND dcr.greptime_timestamp = (SELECT MAX(greptime_timestamp) FROM cockroach_metrics.distsender_circuit_breaker_replicas_probes_running) AND (jrn.greptime_value > 0 OR dcr.greptime_value > 0);",
+  "exec_success": false,
+  "exec_error": "Can't reconnect until invalid transaction is rolled back. (Background on this error at: https://sqlalche.me/e/14/8s2b)",
+  "error_type": "PendingRollbackError",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "",
+  "filtered_table_names": [
+    "cockroach_metrics.rpc_connection_unhealthy_nanos",
+    "cockroach_metrics.up",
+    "cockroach_metrics.jobs_running_non_idle",
+    "cockroach_metrics.distsender_circuit_breaker_replicas_probes_running",
+    "cockroach_metrics.jobs_changefeed_currently_idle"
+  ],
+  "tables_used": [],
+  "total_latency_ms": 4051078.58
+}

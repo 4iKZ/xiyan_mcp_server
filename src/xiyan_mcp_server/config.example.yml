@@ -19,15 +19,19 @@ database:
   database: "public"
 
 # Schema 过滤配置
+# 多工作空间向量索引：JSON 按 system 物理分组在 {knowledge_dir}/{system}/ 下，
+# 服务启动时使用的 Redis 索引名 = redis.index_name + "_" + database.system（自动派生）。
+# 例如 database.system=sundb → 使用 xiyan_schema_sundb 索引；切换工作空间只需改 database.system。
 schema_filter:
-  enabled: true                   
-  knowledge_dir: "json"             # 知识库目录
+  enabled: true
+  knowledge_dir: "json"             # 知识库根目录，子目录 sundb/、cockroach/ 各自一个工作空间
   top_k: 5                          # 检索返回表数量
   score_threshold: 0.4              # 相似度阈值
 
 # Embedding 模型配置
-# 重要：切换 embedding 模型后，必须重新生成 Redis 索引！
-#    python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml --rebuild
+# 重要：切换 embedding 模型或工作空间（database.system）后，必须重新生成对应的 Redis 索引！
+#    python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml --system sundb --rebuild
+#    python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml --system cockroach --rebuild
 #
 # 支持的配置模式：
 # 1. 云端 ModelScope API：全精度，效果好（推荐）
@@ -58,6 +62,7 @@ embedding:
   # 注意：如果使用 4bit 量化，可能导致区分度下降！建议使用 FP16/BF16 量化
 
 # Redis 配置
+# index_name 为基础名，实际使用的索引 = index_name + "_" + database.system
 redis:
   host: "localhost"
   port: 6379

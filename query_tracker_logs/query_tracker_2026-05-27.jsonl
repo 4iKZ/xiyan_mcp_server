@@ -1,0 +1,1309 @@
+{
+  "timestamp": "2026-05-27T04:14:54.211080",
+  "tool": "get_data",
+  "nl_query": "系统最近1小时运行正常吗？有哪些异常指标",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.exec_error_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 hour' AND greptime_value > 0;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 720,
+  "result_preview": [
+    [
+      "2026-05-27 03:45:18.801000",
+      "7913.0",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2"
+    ],
+    [
+      "2026-05-27 03:45:33.801000",
+      "7913.0",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2"
+    ],
+    [
+      "2026-05-27 03:45:48.801000",
+      "7913.0",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.exec_error_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [291.0, 293.0, 93.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sys_cpu_sys_percent"
+  ],
+  "tables_used": [
+    "cockroach_metrics.exec_error_total"
+  ],
+  "total_latency_ms": 1839.59
+}
+{
+  "timestamp": "2026-05-27T04:15:07.914295",
+  "tool": "get_data",
+  "nl_query": "哪些节点目前负载最高？按CPU、内存、延迟分别排序",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id FROM cockroach_metrics.sys_cpu_sys_percent ORDER BY greptime_value DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "2"
+    ]
+  ],
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.sys_cpu_sys_percent\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(greptime_value:DOUBLE, Examples: [0.01399983292179396, 0.013999599912433902, 0.013998635082684351])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_host_disk_read_bytes"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_cpu_sys_percent"
+  ],
+  "total_latency_ms": 3490.45
+}
+{
+  "timestamp": "2026-05-27T04:15:25.499940",
+  "tool": "get_data",
+  "nl_query": "最近6小时内有没有出现过性能抖动？从哪些指标能看出来",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.admission_io_overload WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.exec_error_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.distsender_rpc_sent_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+  "exec_success": true,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) Failed to plan SQL: Error during planning: UNION queries have different number of columns\n\n[SQL: SELECT * FROM cockroach_metrics.admission_io_overload WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.exec_error_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.distsender_rpc_sent_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours';]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "column_not_found",
+  "result_rows": 17280,
+  "result_preview": [
+    [
+      "2026-05-26 22:15:33.801000",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2",
+      "4726.0"
+    ],
+    [
+      "2026-05-26 22:15:48.801000",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2",
+      "4726.0"
+    ],
+    [
+      "2026-05-26 22:16:03.801000",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2",
+      "4726.0"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "instance",
+    "job",
+    "node_id",
+    "greptime_value"
+  ],
+  "retry_count": 1,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT * FROM cockroach_metrics.admission_io_overload WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.exec_error_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT * FROM cockroach_metrics.distsender_rpc_sent_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "error_msg": "",
+      "repaired_sql": "SELECT greptime_timestamp, instance, job, node_id, greptime_value FROM cockroach_metrics.admission_io_overload WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT greptime_timestamp, instance, job, node_id, greptime_value FROM cockroach_metrics.exec_error_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT greptime_timestamp, instance, job, node_id, greptime_value FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' UNION ALL SELECT greptime_timestamp, instance, job, node_id, greptime_value FROM cockroach_metrics.distsender_rpc_sent_total WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours';",
+      "success": true
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.exec_error_total\n[\n(greptime_value:DOUBLE, Examples: [291.0, 293.0, 93.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]\n# Table: cockroach_metrics.admission_io_overload\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0, 0.0005]),\n(node_id:VARCHAR, Examples: [3, 4, 2])\n]\n# Table: cockroach_metrics.sql_query_count_total\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(job:VARCHAR, Examples: [cockroachdb])\n]\n# Table: cockroach_metrics.distsender_rpc_sent_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(greptime_value:DOUBLE, Examples: [109357.0, 109983.0, 110197.0]),\n(job:VARCHAR, Examples: [cockroachdb])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.rocksdb_block_cache_misses",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.sql_query_count_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.sql_query_count_total"
+  ],
+  "total_latency_ms": 7377.98
+}
+{
+  "timestamp": "2026-05-27T04:15:47.521809",
+  "tool": "get_data",
+  "nl_query": "帮我找出集群中可能存在问题的节点，需要看哪些指标",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id, instance, greptime_timestamp, greptime_value FROM cockroach_metrics.exec_error_total WHERE greptime_value > 0 ORDER BY greptime_timestamp DESC;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 50000,
+  "result_preview": [
+    [
+      "3",
+      "172.19.19.128:8080",
+      "2026-05-27 04:15:36.591000",
+      "5779.0"
+    ],
+    [
+      "4",
+      "172.19.19.126:8080",
+      "2026-05-27 04:15:35.443000",
+      "4762.0"
+    ],
+    [
+      "2",
+      "172.19.19.127:8080",
+      "2026-05-27 04:15:33.801000",
+      "7913.0"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "instance",
+    "greptime_timestamp",
+    "greptime_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.exec_error_total\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [291.0, 293.0, 93.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.distsender_batches"
+  ],
+  "tables_used": [
+    "cockroach_metrics.exec_error_total"
+  ],
+  "total_latency_ms": 11654.99
+}
+{
+  "timestamp": "2026-05-27T04:16:26.199747",
+  "tool": "get_data",
+  "nl_query": "分析一下当前系统的健康状态，包括CPU、内存、延迟、错误率",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value = 'nan') * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+  "exec_success": false,
+  "exec_error": "(psycopg2.errors.PlpgsqlError) This feature is not implemented: Physical plan does not support logical expression WindowFunction(WindowFunction { fun: WindowUDF(WindowUDF { inner: WindowShift { signature: Signature { type_signature: OneOf([Any(1), Any(2), Any(3)]), volatility: Immutable }, kind: Lag } }), params: WindowFunctionParams { args: [Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" })], partition_by: [], order_by: [Sort { expr: Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" }), asc: true, nulls_first: false }], window_frame: WindowFrame { units: Range, start_bound: Preceding(IntervalMonthDayNano(\"NULL\")), end_bound: CurrentRow, is_causal: false }, null_treatment: None, distinct: false } })\n\n[SQL: SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+  "error_type": "column_not_found",
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [],
+  "retry_count": 5,
+  "retries": [
+    {
+      "attempt": 1,
+      "failed_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value = 'nan') * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) This feature is not implemented: Physical plan does not support logical expression WindowFunction(WindowFunction { fun: WindowUDF(WindowUDF { inner: WindowShift { signature: Signature { type_signature: OneOf([Any(1), Any(2), Any(3)]), volatility: Immutable }, kind: Lag } }), params: WindowFunctionParams { args: [Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" })], partition_by: [], order_by: [Sort { expr: Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" }), asc: true, nulls_first: false }], window_frame: WindowFrame { units: Range, start_bound: Preceding(IntervalMonthDayNano(\"NULL\")), end_bound: CurrentRow, is_causal: false }, null_treatment: None, distinct: false } })\n\n[SQL: SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value = 'nan') * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value = 'nan') * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "success": false
+    },
+    {
+      "attempt": 2,
+      "failed_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value = 'nan') * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) This feature is not implemented: Physical plan does not support logical expression WindowFunction(WindowFunction { fun: WindowUDF(WindowUDF { inner: WindowShift { signature: Signature { type_signature: OneOf([Any(1), Any(2), Any(3)]), volatility: Immutable }, kind: Lag } }), params: WindowFunctionParams { args: [Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" })], partition_by: [], order_by: [Sort { expr: Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" }), asc: true, nulls_first: false }], window_frame: WindowFrame { units: Range, start_bound: Preceding(IntervalMonthDayNano(\"NULL\")), end_bound: CurrentRow, is_causal: false }, null_treatment: None, distinct: false } })\n\n[SQL: SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "success": false
+    },
+    {
+      "attempt": 3,
+      "failed_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) This feature is not implemented: Physical plan does not support logical expression WindowFunction(WindowFunction { fun: WindowUDF(WindowUDF { inner: WindowShift { signature: Signature { type_signature: OneOf([Any(1), Any(2), Any(3)]), volatility: Immutable }, kind: Lag } }), params: WindowFunctionParams { args: [Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" })], partition_by: [], order_by: [Sort { expr: Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" }), asc: true, nulls_first: false }], window_frame: WindowFrame { units: Range, start_bound: Preceding(IntervalMonthDayNano(\"NULL\")), end_bound: CurrentRow, is_causal: false }, null_treatment: None, distinct: false } })\n\n[SQL: SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "success": false
+    },
+    {
+      "attempt": 4,
+      "failed_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) This feature is not implemented: Physical plan does not support logical expression WindowFunction(WindowFunction { fun: WindowUDF(WindowUDF { inner: WindowShift { signature: Signature { type_signature: OneOf([Any(1), Any(2), Any(3)]), volatility: Immutable }, kind: Lag } }), params: WindowFunctionParams { args: [Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" })], partition_by: [], order_by: [Sort { expr: Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" }), asc: true, nulls_first: false }], window_frame: WindowFrame { units: Range, start_bound: Preceding(IntervalMonthDayNano(\"NULL\")), end_bound: CurrentRow, is_causal: false }, null_treatment: None, distinct: false } })\n\n[SQL: SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "success": false
+    },
+    {
+      "attempt": 5,
+      "failed_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "error_msg": "(psycopg2.errors.PlpgsqlError) This feature is not implemented: Physical plan does not support logical expression WindowFunction(WindowFunction { fun: WindowUDF(WindowUDF { inner: WindowShift { signature: Signature { type_signature: OneOf([Any(1), Any(2), Any(3)]), volatility: Immutable }, kind: Lag } }), params: WindowFunctionParams { args: [Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" })], partition_by: [], order_by: [Sort { expr: Column(Column { relation: Some(Partial { schema: \"cockroach_metrics\", table: \"raft_commandsapplied_total\" }), name: \"greptime_timestamp\" }), asc: true, nulls_first: false }], window_frame: WindowFrame { units: Range, start_bound: Preceding(IntervalMonthDayNano(\"NULL\")), end_bound: CurrentRow, is_causal: false }, null_treatment: None, distinct: false } })\n\n[SQL: SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;]\n(Background on this error at: https://sqlalche.me/e/14/2j85)",
+      "repaired_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(EXTRACT(EPOCH FROM (greptime_timestamp - LAG(greptime_timestamp) OVER (ORDER BY greptime_timestamp)))) FROM (SELECT greptime_timestamp FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS subquery) AS avg_latency, (SELECT COUNT(*) FILTER (WHERE greptime_value IS NULL) * 1.0 / COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS error_rate;",
+      "success": false
+    }
+  ],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.raft_commandsapplied_total\n[\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [1549721.0, 1550857.0, 1551956.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-16 11:54:51.590000]),\n(store:VARCHAR, Examples: [3, 4, 2])\n]\n# Table: cockroach_metrics.sys_rss\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(greptime_value:DOUBLE, Examples: [3672735744.0, 3671199744.0, 3685539840.0])\n]\n# Table: cockroach_metrics.sys_cpu_sys_percent\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(greptime_value:DOUBLE, Examples: [0.01399983292179396, 0.013999599912433902, 0.013998635082684351]),\n(job:VARCHAR, Examples: [cockroachdb])\n]\n# Table: cockroach_metrics.sql_query_count_total\n[\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_rss",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sys_host_disk_read_bytes"
+  ],
+  "tables_used": [
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_rss"
+  ],
+  "total_latency_ms": 28189.14
+}
+{
+  "timestamp": "2026-05-27T04:16:38.161149",
+  "tool": "get_data",
+  "nl_query": "最近一天内哪个时间段系统压力最大？为什么",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT greptime_timestamp, greptime_value FROM cockroach_metrics.admission_io_overload WHERE greptime_timestamp >= NOW() - INTERVAL '1 DAY' ORDER BY greptime_value DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "2026-05-27 02:14:50.443000",
+      "0.001"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.admission_io_overload\n[\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0, 0.0005]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(store:VARCHAR, Examples: [3, 4, 2])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_rss"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_io_overload"
+  ],
+  "total_latency_ms": 1615.43
+}
+{
+  "timestamp": "2026-05-27T04:16:52.200778",
+  "tool": "get_data",
+  "nl_query": "有没有节点出现了资源瓶颈？从CPU和内存的角度分析",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id, MAX(greptime_value) AS max_cpu_usage FROM cockroach_metrics.sys_cpu_sys_percent GROUP BY node_id HAVING MAX(greptime_value) > 0.5 UNION SELECT node_id, MAX(greptime_value) AS max_memory_usage FROM cockroach_metrics.sys_rss GROUP BY node_id HAVING MAX(greptime_value) > 4000000000;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 6,
+  "result_preview": [
+    [
+      "3",
+      "1.0932636443947803"
+    ],
+    [
+      "2",
+      "1.3500624218401072"
+    ],
+    [
+      "4",
+      "10.70630492665421"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "max_cpu_usage"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_rss\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_value:DOUBLE, Examples: [3672735744.0, 3671199744.0, 3685539840.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]\n# Table: cockroach_metrics.sys_cpu_sys_percent\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [0.01399983292179396, 0.013999599912433902, 0.013998635082684351]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.sys_rss"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_rss"
+  ],
+  "total_latency_ms": 3857.51
+}
+{
+  "timestamp": "2026-05-27T04:17:08.865642",
+  "tool": "get_data",
+  "nl_query": "当前集群中有没有异常节点？描述一下判断依据",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id, COUNT(*) AS error_count FROM cockroach_metrics.exec_error_total GROUP BY node_id ORDER BY error_count DESC;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "3",
+      "211328"
+    ],
+    [
+      "4",
+      "211318"
+    ],
+    [
+      "2",
+      "211306"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "error_count"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.exec_error_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(greptime_value:DOUBLE, Examples: [291.0, 293.0, 93.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.distsender_batches",
+    "cockroach_metrics.distsender_rpc_sent_local_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.exec_error_total"
+  ],
+  "total_latency_ms": 1681.3
+}
+{
+  "timestamp": "2026-05-27T04:17:33.915077",
+  "tool": "get_data",
+  "nl_query": "最近24小时系统的整体趋势如何？有没有恶化的迹象",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT 'distsender_rpc_sent_total' AS metric, AVG(greptime_value) AS average_value FROM cockroach_metrics.distsender_rpc_sent_total WHERE greptime_timestamp >= NOW() - INTERVAL '24 hours' UNION ALL SELECT 'raft_commandsapplied_total' AS metric, AVG(greptime_value) AS average_value FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '24 hours' UNION ALL SELECT 'sql_query_count_total' AS metric, AVG(greptime_value) AS average_value FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '24 hours' UNION ALL SELECT 'admission_io_overload' AS metric, AVG(greptime_value) AS average_value FROM cockroach_metrics.admission_io_overload WHERE greptime_timestamp >= NOW() - INTERVAL '24 hours' UNION ALL SELECT 'addsstable_applications_total' AS metric, AVG(greptime_value) AS average_value FROM cockroach_metrics.addsstable_applications_total WHERE greptime_timestamp >= NOW() - INTERVAL '24 hours';",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 5,
+  "result_preview": [
+    [
+      "sql_query_count_total",
+      "0.0"
+    ],
+    [
+      "distsender_rpc_sent_total",
+      "749176.4974905129"
+    ],
+    [
+      "admission_io_overload",
+      "1.9586240665932183e-06"
+    ]
+  ],
+  "fields": [
+    "metric",
+    "average_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.distsender_rpc_sent_total\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [109357.0, 109983.0, 110197.0])\n]\n# Table: cockroach_metrics.raft_commandsapplied_total\n[\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-16 11:54:51.590000]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [1549721.0, 1550857.0, 1551956.0])\n]\n# Table: cockroach_metrics.sql_query_count_total\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.127:8080, 172.19.19.128:8080, 172.19.19.126:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0])\n]\n# Table: cockroach_metrics.admission_io_overload\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0, 0.0005]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080])\n]\n# Table: cockroach_metrics.addsstable_applications_total\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [3, 4, 2])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.addsstable_applications_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.addsstable_applications_total",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sql_query_count_total"
+  ],
+  "total_latency_ms": 5960.03
+}
+{
+  "timestamp": "2026-05-27T04:17:48.390224",
+  "tool": "get_data",
+  "nl_query": "对比各个节点，哪个节点的错误率最高？可能是什么原因",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id, AVG(greptime_value) AS average_error_rate FROM cockroach_metrics.exec_error_total GROUP BY node_id ORDER BY average_error_rate DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "2",
+      "nan"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "average_error_rate"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 3,
+  "relevant_schema": "# Table: cockroach_metrics.exec_error_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_value:DOUBLE, Examples: [291.0, 293.0, 93.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.distsender_batches",
+    "cockroach_metrics.distsender_rpc_sent_local_total",
+    "cockroach_metrics.rocksdb_block_cache_misses"
+  ],
+  "tables_used": [
+    "cockroach_metrics.exec_error_total"
+  ],
+  "total_latency_ms": 4291.9
+}
+{
+  "timestamp": "2026-05-27T04:18:00.436368",
+  "tool": "get_data",
+  "nl_query": "查看系统最近有无突发负载，哪些指标能反映",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT greptime_timestamp, greptime_value FROM cockroach_metrics.admission_io_overload ORDER BY greptime_timestamp DESC LIMIT 10;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 10,
+  "result_preview": [
+    [
+      "2026-05-27 04:17:51.591000",
+      "0.0"
+    ],
+    [
+      "2026-05-27 04:17:50.443000",
+      "0.0"
+    ],
+    [
+      "2026-05-27 04:17:48.801000",
+      "0.0"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.admission_io_overload\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0, 0.0005]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(job:VARCHAR, Examples: [cockroachdb])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.sys_rss"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_io_overload"
+  ],
+  "total_latency_ms": 1551.95
+}
+{
+  "timestamp": "2026-05-27T04:18:26.219328",
+  "tool": "get_data",
+  "nl_query": "分析集群的读写延迟是否有恶化趋势",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT greptime_timestamp, greptime_value FROM cockroach_metrics.raft_process_logcommit_latency_sum ORDER BY greptime_timestamp;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 50000,
+  "result_preview": [
+    [
+      "2026-04-15 17:23:50.443000",
+      "4356045147677.0"
+    ],
+    [
+      "2026-04-15 17:23:51.590000",
+      "4949262139305.0"
+    ],
+    [
+      "2026-04-15 17:24:03.801000",
+      "4850238376649.0"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.raft_process_logcommit_latency_sum\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [4, 2, 3]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:06.590000]),\n(store:VARCHAR, Examples: [4, 2, 3]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_value:DOUBLE, Examples: [17822621019224.0, 17841124081551.0, 17844032346719.0])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.raft_process_logcommit_latency_count",
+    "cockroach_metrics.raft_process_logcommit_latency_sum",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.sql_query_count_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.raft_process_logcommit_latency_sum"
+  ],
+  "total_latency_ms": 7568.27
+}
+{
+  "timestamp": "2026-05-27T04:18:41.468050",
+  "tool": "get_data",
+  "nl_query": "节点之间的负载是否均衡？如果不均衡哪个节点最忙",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id, AVG(greptime_value) AS average_load FROM cockroach_metrics.raft_commandsapplied_total GROUP BY node_id ORDER BY average_load DESC;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "3",
+      "nan"
+    ],
+    [
+      "4",
+      "nan"
+    ],
+    [
+      "2",
+      "nan"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "average_load"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.raft_commandsapplied_total\n[\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-16 11:54:51.590000]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [1549721.0, 1550857.0, 1551956.0]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.distsender_batches",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.exec_error_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.raft_commandsapplied_total"
+  ],
+  "total_latency_ms": 4926.37
+}
+{
+  "timestamp": "2026-05-27T04:18:55.427046",
+  "tool": "get_data",
+  "nl_query": "查看是否有正在排队的请求积压",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.admission_io_overload WHERE greptime_value > 0;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3652,
+  "result_preview": [
+    [
+      "2026-04-16 18:51:21.590000",
+      "0.00025",
+      "172.19.19.128:8080",
+      "cockroachdb",
+      "3",
+      "3"
+    ],
+    [
+      "2026-04-16 18:51:36.590000",
+      "0.00025",
+      "172.19.19.128:8080",
+      "cockroachdb",
+      "3",
+      "3"
+    ],
+    [
+      "2026-04-16 19:15:51.590000",
+      "0.00025",
+      "172.19.19.128:8080",
+      "cockroachdb",
+      "3",
+      "3"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id",
+    "store"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.admission_io_overload\n[\n(greptime_value:DOUBLE, Examples: [nan, 0.0, 0.0005]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.distsender_batches",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sql_query_count_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_io_overload"
+  ],
+  "total_latency_ms": 3779.98
+}
+{
+  "timestamp": "2026-05-27T04:19:06.971348",
+  "tool": "get_data",
+  "nl_query": "最近的Raft共识有没有异常，从哪些指标看",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.raft_commandsapplied_total ORDER BY greptime_timestamp DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "2026-05-27 04:19:05.443000",
+      "2760281.0",
+      "172.19.19.126:8080",
+      "cockroachdb",
+      "4",
+      "4"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id",
+    "store"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.raft_commandsapplied_total\n[\n(store:VARCHAR, Examples: [3, 4, 2]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [1549721.0, 1550857.0, 1551956.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-16 11:54:51.590000])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.raft_process_logcommit_latency_sum",
+    "cockroach_metrics.raft_process_logcommit_latency_count",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.exec_error_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.raft_commandsapplied_total"
+  ],
+  "total_latency_ms": 1318.43
+}
+{
+  "timestamp": "2026-05-27T04:19:42.042339",
+  "tool": "get_data",
+  "nl_query": "分析磁盘I/O是否是当前系统的瓶颈",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.admission_io_overload ORDER BY greptime_timestamp DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "2026-05-27 04:19:36.591000",
+      "0.0",
+      "172.19.19.128:8080",
+      "cockroachdb",
+      "3",
+      "3"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id",
+    "store"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 3,
+  "relevant_schema": "# Table: cockroach_metrics.admission_io_overload\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_value:DOUBLE, Examples: [nan, 0.0, 0.0005])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sys_host_disk_read_bytes",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.sys_host_disk_write_bytes",
+    "cockroach_metrics.capacity_used",
+    "cockroach_metrics.capacity_available"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_io_overload"
+  ],
+  "total_latency_ms": 1022.99
+}
+{
+  "timestamp": "2026-05-27T09:24:25.093793",
+  "tool": "get_data",
+  "nl_query": "系统最近1小时运行正常吗？有哪些异常指标",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 hour' AND greptime_value > 0.05;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 4,
+  "result_preview": [
+    [
+      "2026-05-27 08:38:48.801000",
+      "0.051994452394707846",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2"
+    ],
+    [
+      "2026-05-27 08:39:48.801000",
+      "0.05499530310414027",
+      "172.19.19.127:8080",
+      "cockroachdb",
+      "2"
+    ],
+    [
+      "2026-05-27 08:38:20.443000",
+      "0.06300170544986636",
+      "172.19.19.126:8080",
+      "cockroachdb",
+      "4"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_cpu_sys_percent\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [0.012998762656881825, 0.015000290842139167, 0.015998313886504897]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sys_cpu_sys_percent"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_cpu_sys_percent"
+  ],
+  "total_latency_ms": 1664.92
+}
+{
+  "timestamp": "2026-05-27T09:25:44.960214",
+  "tool": "get_data",
+  "nl_query": "查询表 queue_consistency_pending 在所有节点上最近6小时的平均值，排序找出负载最高的节点",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id, AVG(greptime_value) AS average_value FROM cockroach_metrics.queue_consistency_pending WHERE greptime_timestamp >= NOW() - INTERVAL '6 hours' GROUP BY node_id ORDER BY average_value DESC;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "3",
+      "23.214583333333334"
+    ],
+    [
+      "4",
+      "19.75486111111111"
+    ],
+    [
+      "2",
+      "18.89375"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "average_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "",
+  "filtered_table_names": [
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.distsender_batches",
+    "cockroach_metrics.raft_commandsapplied_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.queue_consistency_pending"
+  ],
+  "total_latency_ms": 2694.61
+}
+{
+  "timestamp": "2026-05-27T09:26:53.633637",
+  "tool": "get_data",
+  "nl_query": "对比表 raft_replication_latency_sum 在节点 2 和节点 3 上最近1小时的指标差异，判断哪个节点负载更高",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT (SELECT greptime_value FROM cockroach_metrics.raft_replication_latency_sum WHERE node_id = '2' AND greptime_timestamp >= NOW() - INTERVAL '1 HOUR' ORDER BY greptime_timestamp DESC LIMIT 1) AS node_2_latency, (SELECT greptime_value FROM cockroach_metrics.raft_replication_latency_sum WHERE node_id = '3' AND greptime_timestamp >= NOW() - INTERVAL '1 HOUR' ORDER BY greptime_timestamp DESC LIMIT 1) AS node_3_latency",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "25247430445983.0",
+      "30908532593566.0"
+    ]
+  ],
+  "fields": [
+    "node_2_latency",
+    "node_3_latency"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "",
+  "filtered_table_names": [
+    "cockroach_metrics.raft_process_logcommit_latency_sum",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.raft_process_logcommit_latency_count",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.distsender_rpc_sent_local_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.raft_replication_latency_sum"
+  ],
+  "total_latency_ms": 3594.44
+}
+{
+  "timestamp": "2026-05-27T09:27:05.413029",
+  "tool": "get_data",
+  "nl_query": "系统最近1小时运行正常吗？有哪些异常指标",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 hour' AND greptime_value > 0.1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 0,
+  "result_preview": null,
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_cpu_sys_percent\n[\n(greptime_value:DOUBLE, Examples: [0.012998762656881825, 0.015000290842139167, 0.015998313886504897]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sys_cpu_sys_percent"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_cpu_sys_percent"
+  ],
+  "total_latency_ms": 1598.57
+}
+{
+  "timestamp": "2026-05-27T09:27:31.908452",
+  "tool": "get_data",
+  "nl_query": "哪些节点目前负载最高？按CPU、内存、延迟分别排序",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id FROM cockroach_metrics.sys_cpu_sys_percent ORDER BY greptime_value DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "2"
+    ]
+  ],
+  "fields": [
+    "node_id"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.sys_cpu_sys_percent\n[\n(greptime_value:DOUBLE, Examples: [0.012998762656881825, 0.015000290842139167, 0.015998313886504897]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_host_disk_read_bytes"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_cpu_sys_percent"
+  ],
+  "total_latency_ms": 16314.69
+}
+{
+  "timestamp": "2026-05-27T09:27:43.925350",
+  "tool": "get_data",
+  "nl_query": "最近6小时内有没有出现过性能抖动？从哪些指标能看出来",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT * FROM cockroach_metrics.admission_io_overload WHERE greptime_timestamp >= NOW() - INTERVAL '6 HOURS' AND greptime_value > 0;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 63,
+  "result_preview": [
+    [
+      "2026-05-27 04:22:06.591000",
+      "0.0005",
+      "172.19.19.128:8080",
+      "cockroachdb",
+      "3",
+      "3"
+    ],
+    [
+      "2026-05-27 04:28:06.591000",
+      "0.001",
+      "172.19.19.128:8080",
+      "cockroachdb",
+      "3",
+      "3"
+    ],
+    [
+      "2026-05-27 04:28:21.591000",
+      "0.0005",
+      "172.19.19.128:8080",
+      "cockroachdb",
+      "3",
+      "3"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value",
+    "instance",
+    "job",
+    "node_id",
+    "store"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.admission_io_overload\n[\n(store:VARCHAR, Examples: [3, 4, 2]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-16 11:54:51.590000]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [0.0, 0.00025, 0.0005])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.rocksdb_block_cache_misses",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.sql_query_count_total"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_io_overload"
+  ],
+  "total_latency_ms": 1821.12
+}
+{
+  "timestamp": "2026-05-27T09:28:06.015155",
+  "tool": "get_data",
+  "nl_query": "帮我找出集群中可能存在问题的节点，需要看哪些指标",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT node_id, greptime_timestamp, greptime_value FROM cockroach_metrics.exec_error_total WHERE greptime_value > 0 ORDER BY node_id, greptime_timestamp;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 50000,
+  "result_preview": [
+    [
+      "2",
+      "2026-04-15 17:24:03.801000",
+      "248.0"
+    ],
+    [
+      "2",
+      "2026-04-15 17:24:18.801000",
+      "248.0"
+    ],
+    [
+      "2",
+      "2026-04-15 17:24:33.801000",
+      "248.0"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "greptime_timestamp",
+    "greptime_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.exec_error_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [249.0, 253.0, 293.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.distsender_batches"
+  ],
+  "tables_used": [
+    "cockroach_metrics.exec_error_total"
+  ],
+  "total_latency_ms": 11893.43
+}
+{
+  "timestamp": "2026-05-27T09:28:47.401363",
+  "tool": "get_data",
+  "nl_query": "分析一下当前系统的健康状态，包括CPU、内存、延迟、错误率",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_cpu_sys_percent WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_cpu_sys_percent, (SELECT AVG(greptime_value) FROM cockroach_metrics.sys_rss WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_memory_usage, (SELECT AVG(greptime_value) FROM cockroach_metrics.raft_commandsapplied_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR') AS avg_raft_commands_applied, (SELECT COUNT(*) FROM cockroach_metrics.sql_query_count_total WHERE greptime_timestamp >= NOW() - INTERVAL '1 HOUR' AND greptime_value = 'nan') AS error_count;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "0.016817192805330183",
+      "4106912705.422222",
+      "3078986.4791666665",
+      "0"
+    ]
+  ],
+  "fields": [
+    "avg_cpu_sys_percent",
+    "avg_memory_usage",
+    "avg_raft_commands_applied",
+    "error_count"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 4,
+  "relevant_schema": "# Table: cockroach_metrics.sys_rss\n[\n(greptime_value:DOUBLE, Examples: [3835944960.0, 3602980864.0, 3606650880.0]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000])\n]\n# Table: cockroach_metrics.sql_query_count_total\n[\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(greptime_value:DOUBLE, Examples: [0.0, nan]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]\n# Table: cockroach_metrics.sys_cpu_sys_percent\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [0.012998762656881825, 0.015000290842139167, 0.015998313886504897]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]\n# Table: cockroach_metrics.raft_commandsapplied_total\n[\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(store:VARCHAR, Examples: [3, 4, 2]),\n(greptime_value:DOUBLE, Examples: [300745.0, 301002.0, 301846.0]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:00:51.590000]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_rss",
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sys_host_disk_read_bytes"
+  ],
+  "tables_used": [
+    "cockroach_metrics.raft_commandsapplied_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_rss"
+  ],
+  "total_latency_ms": 4987.31
+}
+{
+  "timestamp": "2026-05-27T09:28:59.879136",
+  "tool": "get_data",
+  "nl_query": "最近一天内哪个时间段系统压力最大？为什么",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT greptime_timestamp, greptime_value FROM cockroach_metrics.admission_io_overload WHERE greptime_timestamp >= NOW() - INTERVAL '1 DAY' ORDER BY greptime_value DESC LIMIT 1;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 1,
+  "result_preview": [
+    [
+      "2026-05-27 04:28:06.591000",
+      "0.001"
+    ]
+  ],
+  "fields": [
+    "greptime_timestamp",
+    "greptime_value"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.admission_io_overload\n[\n(greptime_value:DOUBLE, Examples: [0.0, 0.00025, 0.0005]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.128:8080, 172.19.19.127:8080]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(node_id:VARCHAR, Examples: [3, 4, 2]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-16 11:54:51.590000]),\n(store:VARCHAR, Examples: [3, 4, 2])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sql_query_count_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_rss"
+  ],
+  "tables_used": [
+    "cockroach_metrics.admission_io_overload"
+  ],
+  "total_latency_ms": 2235.16
+}
+{
+  "timestamp": "2026-05-27T11:40:07.826692",
+  "tool": "get_data",
+  "nl_query": "有没有节点出现了资源瓶颈？从CPU和内存的角度分析",
+  "dialect": "greptimedb",
+  "database": "public",
+  "format": "markdown",
+  "hdfs_path": null,
+  "initial_sql": "SELECT c.node_id, AVG(c.greptime_value) AS avg_cpu_sys_percent, AVG(s.greptime_value) AS avg_rss FROM cockroach_metrics.sys_cpu_sys_percent c JOIN cockroach_metrics.sys_rss s ON c.node_id = s.node_id GROUP BY c.node_id HAVING AVG(c.greptime_value) > 0.5 OR AVG(s.greptime_value) > 4000000000;",
+  "exec_success": true,
+  "exec_error": null,
+  "error_type": null,
+  "result_rows": 3,
+  "result_preview": [
+    [
+      "2",
+      "nan",
+      "nan"
+    ],
+    [
+      "3",
+      "nan",
+      "nan"
+    ],
+    [
+      "4",
+      "nan",
+      "nan"
+    ]
+  ],
+  "fields": [
+    "node_id",
+    "avg_cpu_sys_percent",
+    "avg_rss"
+  ],
+  "retry_count": 0,
+  "retries": [],
+  "schema_filtered": true,
+  "available_table_count": 5,
+  "relevant_schema": "# Table: cockroach_metrics.sys_cpu_sys_percent\n[\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 17:24:03.801000]),\n(greptime_value:DOUBLE, Examples: [0.012998762656881825, 0.015000290842139167, 0.015998313886504897]),\n(node_id:VARCHAR, Examples: [2, 3, 4]),\n(job:VARCHAR, Examples: [cockroachdb]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080])\n]\n# Table: cockroach_metrics.sys_rss\n[\n(job:VARCHAR, Examples: [cockroachdb]),\n(greptime_value:DOUBLE, Examples: [3835944960.0, 3602980864.0, 3606650880.0]),\n(instance:VARCHAR, Examples: [172.19.19.126:8080, 172.19.19.127:8080, 172.19.19.128:8080]),\n(greptime_timestamp:TIMESTAMP, Examples: [2026-04-15 22:01:03.801000]),\n(node_id:VARCHAR, Examples: [2, 3, 4])\n]",
+  "filtered_table_names": [
+    "cockroach_metrics.distsender_rpc_sent_total",
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.exec_error_total",
+    "cockroach_metrics.admission_io_overload",
+    "cockroach_metrics.sys_rss"
+  ],
+  "tables_used": [
+    "cockroach_metrics.sys_cpu_sys_percent",
+    "cockroach_metrics.sys_rss"
+  ],
+  "total_latency_ms": 7857772.65
+}
