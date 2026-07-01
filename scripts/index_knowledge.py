@@ -47,6 +47,11 @@ def main():
         default=None,
         help="工作空间名称（如 sundb / cockroach），覆盖 config.database.system"
     )
+    parser.add_argument(
+        "--index-name",
+        default=None,
+        help="自定义索引名（默认 {redis.index_name}_{system}）"
+    )
     args = parser.parse_args()
     
     # 加载配置
@@ -78,7 +83,7 @@ def main():
 
     # 索引名按工作空间派生：{redis.index_name}_{system}
     base_index = redis_config.get("index_name", "xiyan_schema")
-    index_name = f"{base_index}_{system}"
+    index_name = args.index_name or f"{base_index}_{system}"
     logger.info(f"工作空间: {system}, 知识库目录: {knowledge_dir}, 索引名: {index_name}")
     
     # 初始化 Redis
