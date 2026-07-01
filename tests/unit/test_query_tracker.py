@@ -1,0 +1,215 @@
+"""query_tracker 单元测试
+
+覆盖纯函数：classify_error, extract_tables_from_sql,
+extract_relevant_schema, count_available_tables, QueryTracker._sanitize_tag
+"""
+
+import json
+import pytest
+from pathlib import Path
+
+from xiyan_mcp_server.utils.query_tracker import (
+    classify_error,
+    extract_tables_from_sql,
+    extract_relevant_schema,
+    count_available_tables,
+    QueryTracker,
+)
+
+
+# ── classify_error ─────────────────────────────────────────────
+
+class TestClassifyError:
+
+    def test_empty_returns_unknown(self):
+        assert classify_error("") == "unknown"
+        assert classify_error(None) == "unknown"
+
+    def test_timeout(self):
+        assert classify_error("query timed out after 30s") == "timeout"
+        assert classify_error("查询超时") == "timeout"
+
+    def test_permission_denied(self):
+        assert classify_error("Access denied for user 'root'") == "permission_denied"
+
+    def test_connection_error(self):
+        assert classify_error("Connection refused") == "connection_error"
+
+    def test_column_not_found(self):
+        assert classify_error("Unknown column 'foo' in 'field list'") == "column_not_found"
+        assert classify_error("列不存在") == "column_not_found"
+
+    def test_table_not_found(self):
+        assert classify_error("Table 'users' doesn't exist") == "table_not_found"
+        assert classify_error("表不存在") == "table_not_found"
+
+    def test_syntax_error(self):
+        assert classify_error("syntax error at position 42") == "syntax_error"
+        assert classify_error("语法错误") == "syntax_error"
+
+    def test_type_error(self):
+        assert classify_error("cannot coerce INT to VARCHAR") == "type_error"
+        assert classify_error("failed to coerce type") == "type_error"
+
+    def test_function_not_found(self):
+        assert classify_error("function foo(int) does not exist") == "function_not_found"
+        assert classify_error("invalid function bar") == "function_not_found"
+
+    def test_join_error(self):
+        assert classify_error("ambiguous reference to column 'id'") == "join_error"
+        assert classify_error("JOIN condition mismatch") == "join_error"
+
+    def test_unsupported_statement(self):
+        assert classify_error("feature not supported: DELETE") == "unsupported_statement"
+
+    def test_planner_error(self):
+        assert classify_error("failed to plan query") == "planner_error"
+
+    def test_object_not_exist(self):
+        assert classify_error("foobar does not exist") == "object_not_found"
+
+    def test_other(self):
+        assert classify_error("some random error message") == "other"
+
+
+# ── extract_tables_from_sql ────────────────────────────────────
+
+class TestExtractTablesFromSql:
+
+    def test_simple_select(self):
+        tables = extract_tables_from_sql("SELECT * FROM users")
+        assert tables == ["users"]
+
+    def test_join(self):
+        sql = "SELECT * FROM users JOIN orders ON users.id = orders.user_id"
+        tables = extract_tables_from_sql(sql)
+        assert "users" in tables
+        assert "orders" in tables
+
+    def test_subquery(self):
+        sql = "SELECT * FROM (SELECT id FROM orders) AS sub JOIN users ON sub.id = users.id"
+        tables = extract_tables_from_sql(sql)
+        assert "users" in tables
+        assert "orders" in tables
+
+    def test_insert_into(self):
+        sql = "INSERT INTO audit_log (msg) VALUES ('hello')"
+        tables = extract_tables_from_sql(sql)
+        assert "audit_log" in tables
+
+    def test_empty_sql(self):
+        assert extract_tables_from_sql("") == []
+        assert extract_tables_from_sql(None) == []
+
+    def test_schema_qualified_table(self):
+        sql = "SELECT * FROM public.users"
+        tables = extract_tables_from_sql(sql)
+        assert "public.users" in tables
+
+    def test_case_insensitive(self):
+        sql = "select * from Users where ID in (select user_id from Orders)"
+        tables = extract_tables_from_sql(sql)
+        assert "Users" in tables or "users" in [t.lower() for t in tables]
+
+
+# ── extract_relevant_schema ────────────────────────────────────
+
+class TestExtractRelevantSchema:
+
+    def test_extracts_matching_tables(self, sample_schema_text):
+        result = extract_relevant_schema(sample_schema_text, ["abortspanbytes"])
+        assert "abortspanbytes" in result
+        assert "sys_cpu_usage" not in result
+
+    def test_multiple_tables(self, sample_schema_text):
+        result = extract_relevant_schema(sample_schema_text, ["abortspanbytes", "gc_count"])
+        assert "abortspanbytes" in result
+        assert "gc_count" in result
+        assert "sys_cpu_usage" not in result
+
+    def test_empty_inputs(self):
+        assert extract_relevant_schema("", ["users"]) == ""
+        assert extract_relevant_schema("# Table: x\n[]", []) == ""
+
+    def test_schema_qualified_name(self, sample_schema_text):
+        """db.table 格式应能通过短名匹配"""
+        result = extract_relevant_schema(sample_schema_text, ["mydb.abortspanbytes"])
+        assert "abortspanbytes" in result
+
+
+# ── count_available_tables ─────────────────────────────────────
+
+class TestCountAvailableTables:
+
+    def test_counts_tables(self, sample_schema_text):
+        assert count_available_tables(sample_schema_text) == 3
+
+    def test_empty_schema(self):
+        assert count_available_tables("") == 0
+        assert count_available_tables(None) == 0
+
+
+# ── QueryTracker._sanitize_tag ─────────────────────────────────
+
+class TestSanitizeTag:
+
+    def test_safe_chars_preserved(self):
+        assert QueryTracker._sanitize_tag("hello-world_v2.0") == "hello-world_v2.0"
+
+    def test_unsafe_chars_replaced(self):
+        result = QueryTracker._sanitize_tag("a/b c@d!")
+        assert "/" not in result
+        assert " " not in result
+
+    def test_truncated_to_64(self):
+        long_tag = "a" * 100
+        assert len(QueryTracker._sanitize_tag(long_tag)) == 64
+
+
+# ── QueryTracker 文件写入 ──────────────────────────────────────
+
+class TestQueryTrackerWrite:
+
+    def test_record_query_writes_jsonl(self, tmp_path):
+        tracker = QueryTracker(output_dir=str(tmp_path))
+        tracker.record_query(
+            nl_query="测试查询",
+            tool="get_data",
+            database="testdb",
+            dialect="mysql",
+            initial_sql="SELECT 1",
+            exec_success=True,
+            exec_error=None,
+            error_type=None,
+            result_rows=1,
+            result_preview=None,
+            retry_count=0,
+            retries=[],
+            total_latency_ms=100.5,
+            tables_used=["t1"],
+            fields=["f1"],
+            schema_filtered=False,
+            available_table_count=10,
+            relevant_schema="",
+            filtered_table_names=[],
+        )
+        files = list(tmp_path.glob("query_tracker_*.jsonl"))
+        assert len(files) == 1
+        record = json.loads(files[0].read_text().strip())
+        assert record["nl_query"] == "测试查询"
+        assert record["exec_success"] is True
+
+    def test_disabled_tracker_no_write(self, tmp_path):
+        tracker = QueryTracker(output_dir=str(tmp_path))
+        tracker.set_enabled(False)
+        tracker.record_query(
+            nl_query="x", tool="get_data", database="db", dialect="mysql",
+            initial_sql="SELECT 1", exec_success=True, exec_error=None,
+            error_type=None, result_rows=0, result_preview=None,
+            retry_count=0, retries=[], total_latency_ms=0,
+            tables_used=[], fields=[], schema_filtered=False,
+            available_table_count=0, relevant_schema="",
+            filtered_table_names=[],
+        )
+        files = list(tmp_path.glob("query_tracker_*.jsonl"))
+        assert len(files) == 0

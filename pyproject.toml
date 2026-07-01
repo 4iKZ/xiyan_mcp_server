@@ -30,3 +30,21 @@ build-backend = "hatchling.build"
 
 [project.scripts]
 mysql_mcp_server = "xiyan_mcp_server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "requests>=2.31",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: 需要运行中的 MCP Server (localhost:8000)",
+    "e2e: 端到端测试，耗时较长",
+]
+# 默认只运行单元测试；集成/e2e 需显式 -m
+addopts = "-m 'not integration and not e2e' -v --tb=short"
+asyncio_mode = "auto"
