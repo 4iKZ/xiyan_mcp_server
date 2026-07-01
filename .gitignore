@@ -41,6 +41,8 @@ htmlcov/
 
 # IDE
 .idea/
+.qoder/
+.codegraph/
 .vscode/
 *.swp
 *.swo
@@ -68,8 +70,8 @@ Thumbs.db
 # Claude AI
 .claude/
 .trae/
-docs/code_review_report.md
-
+docs/
+query_tracker_logs/
 # Project-specific
 CLAUDE.md
 API_DOCS.md
@@ -85,9 +87,18 @@ docker_images_tar/
 query_results/
 query_results_hdfs/
 query_results_parquet/
+judge_results/
 
 # Debug scripts
 debug_parquet.py
 
 # Wiki submodule
 xiyan_mcp_server.wiki/
+
+
+
+full_table_list.txt
+
+query_logs.zip
+
+dataset
