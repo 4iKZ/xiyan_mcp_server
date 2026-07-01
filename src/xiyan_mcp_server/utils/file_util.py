@@ -14,6 +14,12 @@ def extract_sql_from_qwen(qwen_result) -> str:
     if len(sql_code_snippets) > 0:
         sql = sql_code_snippets[-1].strip()
 
+    # 机械清洗：当 LLM 未输出标准 markdown 代码块时，
+    # 原始文本可能以 'sql ' 前缀开头（markdown 语言标记泄漏到 SQL 本体），
+    # 导致数据库报 unsupported_statement / keyword: sql 错误。
+    # 此处用固定规则剥离前缀，不改表名/字段/过滤/聚合逻辑。
+    sql = re.sub(r'^\s*sql\s+(SELECT|WITH)\b', r'\1', sql, flags=re.IGNORECASE)
+
     return sql
 
 def read_text(filename)->list:
