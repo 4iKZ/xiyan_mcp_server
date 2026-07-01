@@ -5,6 +5,8 @@ import signal
 import sys
 import time
 import threading
+from datetime import datetime
+from typing import Dict, Optional
 
 import yaml  # 添加yaml库导入
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -241,6 +243,46 @@ def get_db_engine():
 # Schema 过滤配置
 schema_filter_config = global_config.get("schema_filter", {})
 schema_filter_enabled = schema_filter_config.get("enabled", False)
+table_list_path = schema_filter_config.get("table_list", None)  # 可选：全量表模式用的表名清单
+
+# 加载 table_list（若配置了路径）
+_FULL_TABLE_LIST = None
+if table_list_path:
+    if not os.path.isabs(table_list_path):
+        table_list_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), '..', '..', table_list_path
+        )
+    try:
+        with open(table_list_path) as f:
+            _FULL_TABLE_LIST = [line.strip() for line in f if line.strip()]
+        logger.info(f"Loaded {len(_FULL_TABLE_LIST)} tables from {table_list_path}")
+    except Exception as e:
+        logger.warning(f"Failed to load table list from {table_list_path}: {e}")
+        _FULL_TABLE_LIST = None
+
+def _build_table_only_mschema(table_names: list, db_name: str = "cockroach") -> str:
+    """构建极简 M-Schema：通用列说明 + 表名列表（无字段详情）"""
+    COLUMN_LEGEND = (
+        "【通用列说明】cockroach_metrics 下的表为 Prometheus 指标格式，列结构高度统一：\n"
+        "- 所有表都有：greptime_timestamp (TIMESTAMP, 采集时间), greptime_value (FLOAT, 指标值),\n"
+        "  instance (STRING, 采集实例), job (STRING, 采集任务名)\n"
+        "- 99.7% 的表有：node_id (STRING, CockroachDB 节点 ID)\n"
+        "- 约 30% 的表额外有：store (STRING, 存储 ID)\n"
+        "- 约 6% 的表额外有：le (FLOAT, 直方图桶上界)\n"
+    )
+    lines = [COLUMN_LEGEND, f"【DB_ID】 {db_name}", "【Schema】"]
+    for t in sorted(table_names):
+        if t.startswith("cockroachdb"):
+            full_name = f"cockroach_logs.{t}"
+        elif "." in t:
+            full_name = t
+        else:
+            full_name = f"cockroach_metrics.{t}"
+        lines.append(f"# Table: {full_name}")
+        lines.append("[")
+        lines.append("]")
+    return "\n".join(lines)
+
 embedding_config = global_config.get("embedding", {})
 redis_config = global_config.get("redis", {})
 
@@ -317,16 +359,42 @@ _workspace_index_name = (
     f"{_base_index_name}_{global_system_prefix.lower()}"
     if global_system_prefix else _base_index_name
 )
+_stage2_config = schema_filter_config.get("stage2", {}) or {}
 _retriever_config = {
     "index_name": _workspace_index_name,
     "top_k": schema_filter_config.get("top_k", 5),
-    "score_threshold": schema_filter_config.get("score_threshold", 0.6)
+    "score_threshold": schema_filter_config.get("score_threshold", 0.6),
+    "stage2": _stage2_config,
+    "knowledge_dir": schema_filter_config.get("knowledge_dir", "json"),
+    "system_prefix": global_system_prefix,
 }
 logger.info(f"Schema 检索器索引名: {_workspace_index_name} (system={global_system_prefix})")
+if _stage2_config.get("enabled"):
+    logger.info(
+        f"二级筛选已启用: model={_stage2_config.get('model_name')}, "
+        f"N={_stage2_config.get('stage1_top_n')}, M={_stage2_config.get('stage2_top_m')}"
+    )
 
 # 初始化 Schema 检索器（如果启用）
 schema_retriever = None
 _schema_retriever_lock = threading.Lock()  # 立即初始化，避免竞态条件
+
+# 初始化 Stage 2 筛选器（如果启用）
+_stage2_filter = None
+_stage2_filter_lock = threading.Lock()
+
+
+def get_stage2_filter():
+    """获取全局 Stage2Filter 单例（线程安全）"""
+    global _stage2_filter
+    if _stage2_filter is None:
+        with _stage2_filter_lock:
+            if _stage2_filter is None:
+                from .utils.stage2_filter import Stage2Filter
+                _stage2_filter = Stage2Filter(_stage2_config)
+                logger.info("Stage2Filter 已初始化")
+    return _stage2_filter
+
 
 def get_schema_retriever(db_source):
     """获取全局 Schema 检索器单例（线程安全，避免重复初始化检查）"""
@@ -335,12 +403,15 @@ def get_schema_retriever(db_source):
         with _schema_retriever_lock:
             if schema_retriever is None:
                 from .utils.schema_retriever import SchemaRetriever
+                # 仅在 stage2 启用时构造 Stage2Filter
+                stage2_filter = get_stage2_filter() if _stage2_config.get("enabled") else None
                 schema_retriever = SchemaRetriever(
                     get_redis_client(),
                     get_embedding_service(),
                     db_source.mschema,
                     _retriever_config,
-                    db_source=db_source
+                    db_source=db_source,
+                    stage2_filter=stage2_filter,
                 )
                 logger.info("Schema 检索器已初始化")
     return schema_retriever
@@ -487,6 +558,65 @@ def read_resource(table_name) -> str:
         raise RuntimeError(f"Database error: {str(e)}")
 
 
+# ── 按错误类型的 retry 策略 ──
+# 目标：不是减少 token 开销，而是让每次 retry 有真实的修复成功率。
+# base_sql="initial"  → 每次 retry 以原始 SQL 为基线（避免链式歪传播）
+# base_sql="prev"    → 增量修复，每次基于上一次产物（仅 syntax_error）
+RETRY_STRATEGY = {
+    "syntax_error":         {"max_retries": 3, "base_sql": "prev"},
+    "type_error":           {"max_retries": 3, "base_sql": "initial"},
+    "column_not_found":     {"max_retries": 2, "base_sql": "initial"},
+    "table_not_found":      {"max_retries": 2, "base_sql": "initial"},
+    "function_not_found":   {"max_retries": 2, "base_sql": "initial"},
+    "join_error":           {"max_retries": 2, "base_sql": "initial"},
+    "object_not_found":     {"max_retries": 2, "base_sql": "initial"},
+    "planner_error":        {"max_retries": 2, "base_sql": "initial"},
+    "unsupported_statement":{"max_retries": 1, "base_sql": "initial"},
+    "other":                {"max_retries": 1, "base_sql": "initial"},
+    # 基础设施错误：prompt 无法修复，直接跳过
+    "timeout":              {"max_retries": 0, "base_sql": None},
+    "permission_denied":    {"max_retries": 0, "base_sql": None},
+    "connection_error":     {"max_retries": 0, "base_sql": None},
+}
+DEFAULT_RETRY = {"max_retries": 1, "base_sql": "initial"}
+
+
+def _get_retry_strategy(error_type: str) -> dict:
+    return RETRY_STRATEGY.get(error_type, DEFAULT_RETRY)
+
+
+def _inject_limit(sql: str) -> tuple:
+    """
+    如果 SQL 最外层没有 LIMIT，自动注入一个。
+
+    返回 (可能修改后的 SQL, 是否注入了 LIMIT)。
+
+    - 已有外层 LIMIT → 不改
+    - 含聚合函数 (COUNT/SUM/AVG/GROUP BY/stddev/var_/approx_percentile) → LIMIT 1000
+    - 其它 → LIMIT 500
+    """
+    import re
+
+    if not sql or not sql.strip():
+        return sql, False
+
+    # 检查最外层是否有 LIMIT（去掉括号内容后检查，避免子查询/CTE 内的 LIMIT 干扰）
+    stripped = re.sub(r'\([^()]*\)', '', sql, flags=re.IGNORECASE)
+    if re.search(r'\bLIMIT\s+\d+', stripped, re.IGNORECASE):
+        return sql, False
+
+    # 检测聚合函数
+    has_agg = bool(re.search(
+        r'\b(COUNT|SUM|AVG|MAX|MIN|GROUP\s+BY|stddev|var_|approx_percentile)\b',
+        sql, re.IGNORECASE,
+    ))
+    limit_val = 1000 if has_agg else 500
+
+    # 去掉末尾分号，追加 LIMIT
+    sql_stripped = sql.rstrip().rstrip(';').rstrip()
+    return f"{sql_stripped} LIMIT {limit_val}", True
+
+
 def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     """
     Transfers the input natural language question to sql query (known as Text-to-sql) and executes it on the database.
@@ -503,12 +633,39 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
 
     # db_env = context_variables.get('db_env', None)
     t_start = time.time()
+
+    # 注入当前时间，避免模型使用训练数据中的过期日期
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    time_rules = f"""4、当前实际时间是 {now_str}。当用户问题包含相对时间表达（如"最近X小时/天/周"、"今天"、"昨天"、"今天和昨天"等）时，**必须**使用动态时间函数，**禁止**硬编码具体日期：
+   a) "最近N小时" → greptime_timestamp >= NOW() - INTERVAL 'N hours'
+   b) "最近N天" → greptime_timestamp >= NOW() - INTERVAL 'N days'
+   c) "今天" → greptime_timestamp >= CURRENT_DATE AND greptime_timestamp < CURRENT_DATE + INTERVAL '1 day'
+   d) "昨天" → greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_timestamp < CURRENT_DATE
+   e) "今天和昨天"对比 → 用 UNION ALL 分别查询 CURRENT_DATE 当天和 CURRENT_DATE - INTERVAL '1 day' 范围的数据
+   f) 只有用户明确指定了绝对日期（如"2026-06-01到2026-06-02"）时，才使用硬编码日期字符串
+
+"""
+
+    # GreptimeDB/DataFusion 方言限制规则，告知 XiYan 避开不兼容的 PostgreSQL 语法
+    dialect_rules = ""
+    if "greptimedb" in db_env.dialect.lower():
+        dialect_rules = """5、GreptimeDB 底层使用 DataFusion 查询引擎，以下 PostgreSQL 语法不兼容，必须避免：
+   a) 没有 DATE() 函数，日期过滤用字符串比较或 NOW()/CURRENT_DATE 函数：greptime_timestamp >= '2026-06-01 00:00:00' 或 greptime_timestamp >= NOW() - INTERVAL '7 days'
+   b) SELECT DISTINCT 时，ORDER BY 的所有列必须出现在 SELECT 列表中
+   c) 时间戳之间不能做乘除运算（timestamp/timestamp 或 timestamp*n 等不支持）
+   d) 多表 JOIN 或子查询中，列引用务必带表别名（如 t.node_id），避免仅写 node_id
+   e) 时间戳值写成完整的 ISO 字符串 '2026-06-01 00:00:00'，不要简写为 '2026-06-01'
+   f) 子查询中避免 SELECT *（DataFusion 可能无法正确展开），尽量显式列出所需列名
+   g) date_part 等函数只能用于真正的时间戳列，不能对聚合后的数值列调用
+
+"""
+
     prompt = f"""你现在是一名{db_env.dialect}数据分析专家，你的任务是根据参考的数据库schema和用户的问题，编写正确的SQL来回答用户的问题，生成的SQL用``sql 和```包围起来。
 注意：
 1、表名已经包含了完整的 schema 前缀（如 sundb_metrics.table_name），请直接引用这些表名，**禁止**添加 'public.' 或其他任何额外的库名/Schema 前缀。
 2、只生成一个 SQL 语句。
-
-【数据库schema】
+3、对于查询明细数据（不含 COUNT/SUM/AVG/GROUP BY 等聚合），请在 SQL 末尾加 LIMIT 500 限制返回行数。
+{time_rules}{dialect_rules}【数据库schema】
 {db_env.mschema_str}
 
 【问题】
@@ -546,44 +703,98 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
         logger.debug(f"LLM Raw Response: {content}")
         sql_query = extract_sql_from_qwen(content)
         logger.info(f"Extracted SQL: {sql_query}")
+
+        # ── 自动注入 LIMIT（若 SQL 最外层无 LIMIT）──
+        sql_query, limit_injected = _inject_limit(sql_query)
+        if limit_injected:
+            logger.info(f"自动注入 LIMIT → 新 SQL: {sql_query}")
+        tracking["limit_injected"] = limit_injected
+
         tracking["initial_sql"] = sql_query or ""
         tracking["llm_latency_ms"] = round(llm_latency_ms, 2)
 
-        status, res = db_env.database.fetch(sql_query)
+        _data: list = []
+        _columns: list = []
+        fetch_result = db_env.database.fetch(sql_query)
+        status = fetch_result[0]
+        if status:
+            _data, _columns = fetch_result[1]
+        else:
+            res = fetch_result[1]
         if not status:
             logger.warning(f"Initial SQL execution failed: {res}. Starting fix loop...")
             tracking["exec_error"] = str(res) if res else "unknown"
-            tracking["error_type"] = classify_error(str(res))
+            error_type = classify_error(str(res))
+            tracking["error_type"] = error_type
 
-            prev_sql = sql_query
-            for idx in range(5):
-                repaired_sql = sql_fix(
-                    db_env.dialect, db_env.mschema_str, query, prev_sql, res
+            strategy = _get_retry_strategy(error_type)
+            max_retries = strategy["max_retries"]
+            base_sql = strategy["base_sql"]
+
+            if max_retries == 0:
+                logger.info(
+                    f"错误类型 '{error_type}' 为基础设施错误，跳过修复循环"
                 )
-                logger.info(f"Fixed SQL (Attempt {idx+1}): {repaired_sql}")
-                status, res = db_env.database.fetch(repaired_sql)
+            else:
+                prev_sql = sql_query
+                initial_sql = sql_query  # 保留原始 SQL，大部分错误类型以此为基线
+                for idx in range(max_retries):
+                    # 选基线：syntax_error 用上次产物增量修，其余类型从原始 SQL 出发
+                    fix_base_sql = (
+                        prev_sql if base_sql == "prev" else initial_sql
+                    )
 
-                retry_record = {
-                    "attempt": idx + 1,
-                    "failed_sql": prev_sql,
-                    "error_msg": str(res) if not status and res else "",
-                    "repaired_sql": repaired_sql,
-                    "success": status,
-                }
-                tracking["retries"].append(retry_record)
+                    repaired_sql = sql_fix(
+                        db_env.dialect, db_env.mschema_str, query,
+                        fix_base_sql, res, error_type=error_type,
+                    )
+                    repaired_sql, _ = _inject_limit(repaired_sql)
+                    logger.info(
+                        f"Fixed SQL (Attempt {idx+1}/{max_retries}, "
+                        f"type={error_type}): {repaired_sql}"
+                    )
+                    fetch_result = db_env.database.fetch(repaired_sql)
+                    status = fetch_result[0]
+                    if status:
+                        _data, _columns = fetch_result[1]
+                    else:
+                        res = fetch_result[1]
 
-                if status:
-                    logger.info("SQL fix successful.")
-                    sql_query = repaired_sql
-                    break
-                prev_sql = repaired_sql
+                    retry_record = {
+                        "attempt": idx + 1,
+                        "error_type": error_type,
+                        "failed_sql": fix_base_sql,
+                        "error_msg": str(res) if not status and res else "",
+                        "repaired_sql": repaired_sql,
+                        "success": status,
+                    }
+                    tracking["retries"].append(retry_record)
 
-            if not status:
-                logger.error(f"SQL fix failed after 5 attempts. Last error: {res}")
-                tracking["exec_error"] = str(res) if res else tracking["exec_error"]
+                    if status:
+                        logger.info("SQL fix successful.")
+                        sql_query = repaired_sql
+                        break
+                    prev_sql = repaired_sql
 
-        sql_res = db_env.database.fetch_truncated(sql_query, max_rows=50000)
-        logger.info(f"SQL result count: {len(sql_res.get('truncated_results', []))}")
+                if not status:
+                    logger.error(
+                        f"SQL fix failed after {max_retries} attempts. "
+                        f"Error type: {error_type}. Last error: {res}"
+                    )
+                    tracking["exec_error"] = str(res) if res else tracking["exec_error"]
+
+        if status:
+            # 内存截断代替 fetch_truncated 二次 SQL 执行
+            truncated = []
+            for row in _data[:50000]:
+                truncated.append(tuple(
+                    str(v)[:30] if v is not None else "" for v in row
+                ))
+            sql_res = {"truncated_results": truncated, "fields": _columns}
+            logger.info(f"SQL result count: {len(truncated)}")
+        else:
+            sql_res = {"truncated_results": str(res), "fields": [], "error": str(res)}
+            logger.warning(f"SQL 执行失败: {error_type}")
 
         # 提取表名
         tracking["tables_used"] = extract_tables_from_sql(sql_query)
@@ -606,24 +817,106 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
 
 
 def sql_fix(
-    dialect: str, mschema: str, query: str, sql_query: str, error_info: str
+    dialect: str, mschema: str, query: str, sql_query: str, error_info: str,
+    error_type: str = "other",
 ):
-    system_prompt = """现在你是一个{dialect}数据分析专家，需要阅读一个客户的问题，参考的数据库schema，该问题对应的待检查SQL，以及执行该SQL时数据库返回的语法错误，请你仅针对其中的语法错误进行修复，输出修复后的SQL。
-注意：
-1、仅修复语法错误，不允许改变SQL的逻辑。
-2、生成的SQL用```sql 和```包围起来。
+    """根据错误类型选择不同的修复 prompt，使每次 retry 都有真实修复概率"""
 
-【数据库schema】
-{schema}
-""".format(dialect=dialect, schema=mschema)
-    user_prompt = """【问题】
-{question}
+    # ── 按错误类型定制 system prompt ──
+    #    prompt 里写 {dialect} 和 {schema} 两个占位符，format 后拼上完整 schema
+    PROMPT_VARIANTS = {
+        "syntax_error": (
+            "现在你是一个{dialect}数据分析专家。下面的SQL执行时出现了**语法错误**。"
+            "请修复SQL中的语法问题。\n"
+            "注意：\n"
+            "1. 仅修复语法错误，不允许改变SQL的逻辑。\n"
+            "2. 生成的SQL用```sql 和```包围起来。\n"
+        ),
+        "column_not_found": (
+            "现在你是一个{dialect}数据分析专家。下面的SQL执行时报告**列不存在**。"
+            "请仔细检查数据库schema，尝试替换为schema中实际存在的列名。\n"
+            "注意：\n"
+            "1. 只修改列名，不改变SQL的查询逻辑。\n"
+            "2. 如果原列名在schema中找不到，尝试语义最接近的列名。\n"
+            "3. 如果确实没有匹配的列，可以适当简化查询（如用 SELECT * 替代）。\n"
+            "4. 生成的SQL用```sql 和```包围起来。\n"
+        ),
+        "table_not_found": (
+            "现在你是一个{dialect}数据分析专家。下面的SQL执行时报告**表不存在**。"
+            "请仔细检查数据库schema，尝试替换为schema中实际存在的表名。\n"
+            "注意：\n"
+            "1. 只修改表名，不改变SQL的查询逻辑。\n"
+            "2. 在schema中查找语义最接近的表名。\n"
+            "3. 如果确实没有匹配的表，请在输出中说明。\n"
+            "4. 生成的SQL用```sql 和```包围起来。\n"
+        ),
+        "function_not_found": (
+            "现在你是一个{dialect}数据分析专家。下面的SQL执行时报告**函数不存在**。"
+            "请尝试用数据库实际支持的函数替换。\n"
+            "注意：\n"
+            "1. 用数据库支持的函数实现等价的语义。\n"
+            "2. 如果无法找到等价函数，可以简化查询逻辑。\n"
+            "3. 生成的SQL用```sql 和```包围起来。\n"
+        ),
+        "type_error": (
+            "现在你是一个{dialect}数据分析专家。下面的SQL执行时出现了**类型/强制转换错误**。"
+            "请添加或修正CAST类型转换。\n"
+            "注意：\n"
+            "1. 添加适当的 CAST(expr AS type) 转换不兼容的类型。\n"
+            "2. 对于比较操作，确保两边类型一致。\n"
+            "3. 对于聚合函数参数，确保类型正确。\n"
+            "4. 生成的SQL用```sql 和```包围起来。\n"
+        ),
+        "join_error": (
+            "现在你是一个{dialect}数据分析专家。下面的SQL执行时出现了**JOIN/歧义引用错误**。"
+            "请给所有有歧义的列引用加上表名前缀。\n"
+            "注意：\n"
+            "1. 列名需要加上完整的表名前缀（如 table.column）。\n"
+            "2. 如果使用了别名，请使用别名前缀。\n"
+            "3. 生成的SQL用```sql 和```包围起来。\n"
+        ),
+        "unsupported_statement": (
+            "现在你是一个{dialect}数据分析专家。下面的SQL执行时报告**语句不被支持**。"
+            "请检查SQL开头是否有多余的关键词（如 'sql' 前缀），并清理SQL。\n"
+            "注意：\n"
+            "1. 确保SQL以 SELECT 开头，没有多余的前缀词。\n"
+            "2. 确保只有一条SQL语句。\n"
+            "3. 移除任何非标准的语法结构。\n"
+            "4. 生成的SQL用```sql 和```包围起来。\n"
+        ),
+        "planner_error": (
+            "现在你是一个{dialect}数据分析专家。下面的SQL执行时数据库规划器返回了错误。"
+            "请尝试简化SQL，可能涉及子查询重写、使用更简单的表达式。\n"
+            "注意：\n"
+            "1. 可以拆分子查询为更简单的形式。\n"
+            "2. 简化 WHERE 子句中的复杂表达式。\n"
+            "3. 如果使用了窗口函数或CTE，尝试重写为简单查询。\n"
+            "4. 生成的SQL用```sql 和```包围起来。\n"
+        ),
+    }
 
-【待检查SQL】
-{sql}
+    # 通用 prompt（other / object_not_found / unknown 等）
+    DEFAULT_PROMPT = (
+        "现在你是一个{dialect}数据分析专家。下面的SQL执行时数据库返回了错误。"
+        "请根据错误信息修复SQL。\n"
+        "注意：\n"
+        "1. 只修改必要的部分，尽量保持原SQL的逻辑不变。\n"
+        "2. 如果错误无法修复，可以尝试生成等价但语法不同的SQL。\n"
+        "3. 生成的SQL用```sql 和```包围起来。\n"
+    )
 
-【错误信息】
-{sql_res}""".format(question=query, sql=sql_query, sql_res=error_info)
+    prompt_template = PROMPT_VARIANTS.get(error_type, DEFAULT_PROMPT)
+    system_prompt = prompt_template.format(dialect=dialect)
+    system_prompt += f"\n【数据库schema】\n{mschema}"
+
+    user_prompt = (
+        "【问题】\n"
+        "{question}\n\n"
+        "【待检查SQL】\n"
+        "{sql}\n\n"
+        "【错误信息】\n"
+        "{sql_res}"
+    ).format(question=query, sql=sql_query, sql_res=error_info)
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -634,6 +927,7 @@ def sql_fix(
         "messages": messages,
         "key": model_config["key"],
         "url": model_config["url"],
+        "api_version": model_config.get("api_version"),
     }
 
     response = call_openai_sdk(**param)
@@ -700,12 +994,24 @@ def format_result(result: dict, format_type: str = "markdown") -> str:
         return "\n".join([header, separator] + data_rows)
 
 
-def call_xiyan(query: str, format_type: str = "markdown") -> str:
+def call_xiyan(
+    query: str,
+    format_type: str = "markdown",
+    stage2_enabled: Optional[bool] = None,
+    stage1_n: Optional[int] = None,
+    stage2_m: Optional[int] = None,
+    run_tag: Optional[str] = None,
+) -> str:
     """Fetch the data from database through a natural language query
 
     Args:
         query: The query in natual language
         format_type: Output format (markdown, json, csv)
+        stage2_enabled: 临时覆盖 schema_filter.stage2.enabled（None 走配置默认值）
+        stage1_n: 临时覆盖 stage2.stage1_top_n
+        stage2_m: 临时覆盖 stage2.stage2_top_m
+        run_tag: 实验运行标签；当 batch test 不同 (N,M) 配比时区分用，
+                 传入后该次记录会落到 query_tracker_{date}_{tag}.jsonl
     """
     global schema_retriever
 
@@ -724,16 +1030,20 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
 
     # Schema 过滤
     filtered_table_names = []  # 记录传给 LLM 的候选表名
+    retrieval_meta: Dict = {}  # 记录二级筛选元数据
     if schema_filter_enabled:
         try:
             # 使用封装函数获取 Schema 检索器（线程安全）
             retriever = get_schema_retriever(db_source)
 
             # 检索相关表并构建 Sub-Schema
-            table_names, sub_schema = retriever.retrieve_and_build(
+            table_names, sub_schema, retrieval_meta = retriever.retrieve_and_build(
                 query,
                 database=global_db_config.get("database"),
-                system_prefix=global_system_prefix
+                system_prefix=global_system_prefix,
+                stage2_enabled=stage2_enabled,
+                stage1_top_n=stage1_n,
+                stage2_top_m=stage2_m,
             )
             filtered_table_names = table_names[:]  # 复制一份
             logger.info(f"Schema 过滤：检索到 {len(table_names)} 个表: {table_names}")
@@ -748,7 +1058,13 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
             env = DataBaseEnv(db_source)
     else:
         env = DataBaseEnv(db_source)
-    
+        if _FULL_TABLE_LIST:
+            env.mschema_str = _build_table_only_mschema(_FULL_TABLE_LIST)
+            logger.info(
+                f"全量表模式: 使用 {len(_FULL_TABLE_LIST)} 张表名构建 M-Schema, "
+                f"{len(env.mschema_str)} 字符"
+            )
+
     res = sql_gen_and_execute(env, query)
 
     # --- 记录追踪数据 ---
@@ -795,6 +1111,15 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
                 available_table_count=count_available_tables(full_schema),
                 relevant_schema=extract_relevant_schema(full_schema, tables_used),
                 filtered_table_names=filtered_tables,
+                # ── 二级筛选追踪 ──
+                stage2_enabled=retrieval_meta.get("stage2_enabled"),
+                stage1_top_n=retrieval_meta.get("stage1_top_n"),
+                stage2_top_m=retrieval_meta.get("stage2_top_m"),
+                stage1_tables=retrieval_meta.get("stage1_tables"),
+                stage2_tables=retrieval_meta.get("stage2_tables"),
+                stage2_model=retrieval_meta.get("stage2_model"),
+                run_tag=run_tag,
+                limit_injected=tracking.get("limit_injected"),
             )
         except Exception as e:
             logger.error(f"追踪记录写入失败: {e}", exc_info=True)
@@ -812,15 +1137,35 @@ def call_xiyan(query: str, format_type: str = "markdown") -> str:
 
 
 @mcp.tool()
-def get_data(query: str, format: str = "markdown") -> list[TextContent]:
+def get_data(
+    query: str,
+    format: str = "markdown",
+    stage2_enabled: Optional[bool] = None,
+    stage1_n: Optional[int] = None,
+    stage2_m: Optional[int] = None,
+    run_tag: Optional[str] = None,
+) -> list[TextContent]:
     """Fetch the data from database through a natural language query
 
     Args:
         query: The query in natural language
         format: Output format - 'markdown' (default), 'json', or 'csv'
+        stage2_enabled: 临时覆盖配置中的二级筛选开关（None 表示用配置默认值）。
+            实验中可逐条切换，例如 True 启用、False 关闭。
+        stage1_n: 临时覆盖向量粗召回数量（仅在二级筛选启用时生效）
+        stage2_m: 临时覆盖模型精筛保留数量（仅在二级筛选启用时生效）
+        run_tag: 实验运行标签（如 "n20m5_flash"），同一天跑不同 (N,M) 配比时区分用；
+            传入后追踪文件会变成 query_tracker_{date}_{tag}.jsonl，且每条记录会带 run_tag 字段。
     """
 
-    res = call_xiyan(query, format_type=format)
+    res = call_xiyan(
+        query,
+        format_type=format,
+        stage2_enabled=stage2_enabled,
+        stage1_n=stage1_n,
+        stage2_m=stage2_m,
+        run_tag=run_tag,
+    )
     return [TextContent(type="text", text=res)]
 
 
@@ -942,7 +1287,7 @@ def _strip_path_clauses(query: str) -> str:
 
 
 @mcp.tool()
-def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = "") -> list[TextContent]:
+def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = "", run_tag: Optional[str] = None) -> list[TextContent]:
     """Execute natural language query and upload results to HDFS in parquet format
 
     This tool performs the following steps:
@@ -1010,10 +1355,11 @@ def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = 
 
         # Schema 过滤（如果启用）
         filtered_table_names = []
+        retrieval_meta: Dict = {}
         if schema_filter_enabled:
             try:
                 retriever = get_schema_retriever(db_source)
-                table_names, sub_schema = retriever.retrieve_and_build(
+                table_names, sub_schema, retrieval_meta = retriever.retrieve_and_build(
                     query,
                     database=global_db_config.get("database"),
                     system_prefix=global_system_prefix
@@ -1063,6 +1409,15 @@ def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = 
                     available_table_count=count_available_tables(full_schema),
                     relevant_schema=extract_relevant_schema(full_schema, tables_used),
                     filtered_table_names=filtered_table_names,
+                    # ── 二级筛选追踪 ──
+                    stage2_enabled=retrieval_meta.get("stage2_enabled"),
+                    stage1_top_n=retrieval_meta.get("stage1_top_n"),
+                    stage2_top_m=retrieval_meta.get("stage2_top_m"),
+                    stage1_tables=retrieval_meta.get("stage1_tables"),
+                    stage2_tables=retrieval_meta.get("stage2_tables"),
+                    stage2_model=retrieval_meta.get("stage2_model"),
+                    run_tag=run_tag,
+                    limit_injected=tracking.get("limit_injected"),
                 )
             except Exception as e:
                 logger.error(f"追踪记录写入失败(hdfs): {e}", exc_info=True)
