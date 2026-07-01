@@ -78,12 +78,14 @@ def connect_to_greptimedb(db_name, user_name, db_pwd, db_host, port) -> Engine:
         if db_pwd:
             return psycopg2.connect(
                 host=db_host, port=port, user=user_name,
-                password=db_pwd, dbname=db_name
+                password=db_pwd, dbname=db_name,
+                connect_timeout=15,
             )
         else:
             return psycopg2.connect(
                 host=db_host, port=port, user=user_name,
-                dbname=db_name
+                dbname=db_name,
+                connect_timeout=15,
             )
 
     db_engine = create_engine(conn_str, creator=creator, **POOL_CONFIG)

@@ -1,11 +1,37 @@
-from typing import Any, Dict, List, Optional, Tuple
+import concurrent.futures
 import os
+from typing import Any, Dict, List, Optional, Tuple
 import logging
 import sqlparse
 from sqlparse.sql import Statement, IdentifierList, Identifier
 from sqlparse.tokens import Keyword, DML
 
 logger = logging.getLogger("xiyan_mcp_server.db_source")
+
+SQL_EXECUTE_TIMEOUT = int(os.getenv("SQL_EXECUTE_TIMEOUT", "60"))
+
+
+def _run_query_with_timeout(engine, sql_query: str, timeout: int = SQL_EXECUTE_TIMEOUT):
+    """在独立线程中执行 SQL 查询，超时抛出 TimeoutError。
+
+    executor 线程使用**独立连接**，与主线程零共享，彻底消除线程安全问题。
+    """
+    def _do_query():
+        with engine.begin() as conn:
+            cursor = conn.execute(text(sql_query))
+            columns = list(cursor.keys())
+            records = [tuple(row) for row in cursor.fetchall()]
+            return columns, records
+
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(_do_query)
+        return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        executor.shutdown(wait=False)
+        raise TimeoutError(f"SQL 执行超时 ({timeout}s)")
+    else:
+        executor.shutdown(wait=True)
 
 from llama_index.core import SQLDatabase
 from sqlalchemy import MetaData, Table, select, text
@@ -175,25 +201,20 @@ class HITLSQLDatabase(SQLDatabase):
         logger.debug(f"Executing SQL fetch: {sql_query}")
 
         try:
-            with self._engine.begin() as connection:
-                cursor = connection.execute(text(sql_query))
+            columns, records = _run_query_with_timeout(self._engine, sql_query)
 
-                # 使用 partitions() 分批加载，避免一次性加载所有数据
-                records = []
-                for partition in cursor.partitions(1000):  # 每批 1000 行
-                    records.extend([tuple(row) for row in partition])
+            if len(records) > max_rows:
+                logger.warning(
+                    f"查询结果超过 {max_rows} 行，已截断。"
+                    f"建议使用 LIMIT 或 WHERE 子句减少数据量。"
+                )
+                records = records[:max_rows]
 
-                    # 早期退出：如果超过最大行数，记录警告并截断
-                    if len(records) > max_rows:
-                        logger.warning(
-                            f"查询结果超过 {max_rows} 行，已截断。"
-                            f"建议使用 LIMIT 或 WHERE 子句减少数据量。"
-                        )
-                        records = records[:max_rows]
-                        break
-
-                logger.info(f"SQL fetch successful, rows: {len(records)}")
-                return True, records
+            logger.info(f"SQL fetch successful, rows: {len(records)}")
+            return True, (records, columns)
+        except TimeoutError as e:
+            logger.warning(f"SQL fetch timeout: {sql_query[:200]}...")
+            return False, str(e)
         except Exception as e:
             logger.error(f"SQL fetch error: {e}")
             return False, str(e)
@@ -204,12 +225,12 @@ class HITLSQLDatabase(SQLDatabase):
         logger.debug(f"Executing SQL fetch_with_column_name: {sql_query}")
 
         try:
-            with self._engine.begin() as connection:
-                cursor = connection.execute(text(sql_query))
-                columns = cursor.keys()
-                records = cursor.fetchall()
-                logger.info(f"SQL fetch_with_column_name successful, rows: {len(records)}")
-                return records, columns
+            columns, records = _run_query_with_timeout(self._engine, sql_query)
+            logger.info(f"SQL fetch_with_column_name successful, rows: {len(records)}")
+            return records, columns
+        except TimeoutError:
+            logger.warning(f"SQL fetch_with_column_name timeout: {sql_query[:200]}...")
+            return None, []
         except Exception as e:
             logger.error(f"SQL fetch_with_column_name error: {e}")
             return None, []
@@ -237,35 +258,19 @@ class HITLSQLDatabase(SQLDatabase):
             max_rows = 50000
 
         try:
-            with self._engine.begin() as connection:
-                cursor = connection.execute(text(sql_query))
+            columns, records = _run_query_with_timeout(self._engine, sql_query)
+            if max_rows:
+                records = records[:max_rows]
+            truncated_results = [
+                tuple(self.truncate_word(col, length=max_str_len) for col in row)
+                for row in records
+            ]
+            logger.info(f"SQL fetch_truncated successful, rows: {len(truncated_results)}")
+            return {"truncated_results": truncated_results, "fields": columns}
 
-                # 使用 fetchmany 分批加载，而不是 fetchall
-                truncated_results = []
-                batch_size = 1000
-                remaining = max_rows
-
-                while remaining > 0:
-                    batch = cursor.fetchmany(min(batch_size, remaining))
-                    if not batch:
-                        break
-
-                    for row in batch:
-                        truncated_row = tuple(
-                            self.truncate_word(column, length=max_str_len)
-                            for column in row
-                        )
-                        truncated_results.append(truncated_row)
-
-                    remaining -= len(batch)
-
-                    # 早期退出
-                    if len(truncated_results) >= max_rows:
-                        break
-
-                logger.info(f"SQL fetch_truncated successful, rows: {len(truncated_results)}")
-                return {"truncated_results": truncated_results, "fields": list(cursor.keys())}
-
+        except TimeoutError as e:
+            logger.warning(f"SQL fetch_truncated timeout: {sql_query[:200]}...")
+            return {"truncated_results": str(e), "fields": []}
         except Exception as e:
             logger.error(f"SQL fetch_truncated error: {e}")
             return {"truncated_results": str(e), "fields": []}

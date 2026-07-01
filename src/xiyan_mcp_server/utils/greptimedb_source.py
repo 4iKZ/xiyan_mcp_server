@@ -4,9 +4,12 @@ GreptimeDB 专用数据源类
 由于 llama_index.SQLDatabase 在初始化时会使用 SQLAlchemy 自动加载表结构，
 这与 GreptimeDB 的 pg_catalog 不兼容，因此需要自定义实现。
 """
+import concurrent.futures
 import logging
+import os
 import threading
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -16,6 +19,31 @@ from .db_util import examples_to_str, preprocess_sql_query
 from .db_source import validate_sql_query
 
 logger = logging.getLogger(__name__)
+
+SQL_EXECUTE_TIMEOUT = int(os.getenv("SQL_EXECUTE_TIMEOUT", "60"))
+
+
+def _run_query_with_timeout(engine, sql_query: str, timeout: int = SQL_EXECUTE_TIMEOUT):
+    """在独立线程中执行 SQL 查询，超时抛出 TimeoutError。
+
+    executor 线程使用**独立连接**，与主线程零共享，彻底消除线程安全问题。
+    """
+    def _do_query():
+        with engine.begin() as conn:
+            cursor = conn.execute(text(sql_query))
+            columns = list(cursor.keys())
+            records = cursor.fetchall()
+            return columns, records
+
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(_do_query)
+        return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        executor.shutdown(wait=False)
+        raise TimeoutError(f"SQL 执行超时 ({timeout}s)")
+    else:
+        executor.shutdown(wait=True)
 
 
 class GreptimeDBSource:
@@ -37,10 +65,40 @@ class GreptimeDBSource:
         self._loading_locks = OrderedDict()  # {full_table_name: Lock}
         self._loading_locks_lock = threading.Lock()
         self._loading_locks_max_size = 1000  # 可配置
+
+        # --- 尝试从缓存文件加载（跳过 init_mschema 的数据库查询） ---
+        cache_path = self._get_schema_cache_path()
+        if cache_path and Path(cache_path).exists():
+            try:
+                self._mschema.load(cache_path)
+                self._usable_tables = list(self._mschema.tables.keys())
+                loaded_count = sum(
+                    1 for t in self._mschema.tables.values()
+                    if t.get('fields')
+                )
+                logger.info(
+                    f"Schema 缓存已加载: {cache_path}, "
+                    f"{len(self._usable_tables)} 张表, {loaded_count} 张已填充列信息"
+                )
+                return  # 跳过 init_mschema()
+            except Exception as e:
+                logger.warning(f"Schema 缓存加载失败，回退到 init_mschema: {e}")
+
+        # 回退：原有逻辑（只加载表名，不加载列信息）
         logger.info(f"GreptimeDBSource: 开始调用 init_mschema")
         self.init_mschema()
         logger.info(f"GreptimeDBSource.__init__ 完成")
-    
+
+    def _get_schema_cache_path(self) -> Optional[str]:
+        """根据 system_prefix 派生缓存文件路径
+
+        路径规则：json/{system_prefix}/schema_cache.json
+        与知识库目录结构一致，返回 None 表示无 system_prefix（不启用缓存）。
+        """
+        if not self._system_prefix:
+            return None
+        return str(Path("json") / self._system_prefix.lower() / "schema_cache.json")
+
     def _get_db_name_from_url(self):
         """从引擎 URL 获取数据库名"""
         return self._engine.url.database or "public"
@@ -289,62 +347,54 @@ class GreptimeDBSource:
     def fetch(self, sql_query: str) -> Tuple[bool, Any]:
         """执行 SQL 查询"""
         sql_query = preprocess_sql_query(sql_query)
-
-        # 添加 SQL 验证
         validate_sql_query(sql_query)
 
-        with self._engine.begin() as conn:
-            try:
-                cursor = conn.execute(text(sql_query))
-                records = cursor.fetchall()
-                records = [tuple(row) for row in records]
-                return True, records
-            except Exception as e:
-                return False, str(e)
+        try:
+            columns, records = _run_query_with_timeout(self._engine, sql_query)
+            records = [tuple(row) for row in records]
+            return True, (records, columns)
+        except TimeoutError as e:
+            logger.warning(f"SQL fetch timeout: {sql_query[:200]}...")
+            return False, str(e)
+        except Exception as e:
+            return False, str(e)
     
     def fetch_with_column_name(self, sql_query: str) -> Tuple[Any, List]:
         """执行查询并返回列名"""
         sql_query = preprocess_sql_query(sql_query)
-
-        # 添加 SQL 验证
         validate_sql_query(sql_query)
 
-        with self._engine.begin() as conn:
-            try:
-                cursor = conn.execute(text(sql_query))
-                columns = list(cursor.keys())
-                records = cursor.fetchall()
-                return records, columns
-            except Exception as e:
-                return None, []
+        try:
+            columns, records = _run_query_with_timeout(self._engine, sql_query)
+            return records, columns
+        except TimeoutError:
+            logger.warning(f"SQL fetch_with_column_name timeout: {sql_query[:200]}...")
+            return None, []
+        except Exception:
+            return None, []
     
     def fetch_truncated(self, sql_query: str, max_rows: Optional[int] = None, max_str_len: int = 30) -> Dict:
         """执行查询并截断结果"""
         sql_query = preprocess_sql_query(sql_query)
-
-        # 添加 SQL 验证
         validate_sql_query(sql_query)
 
-        # 默认最大行数为 50000，防止内存溢出
         if max_rows is None:
             max_rows = 50000
 
-        with self._engine.begin() as conn:
-            try:
-                cursor = conn.execute(text(sql_query))
-                result = cursor.fetchall()
-                truncated_results = []
-                if max_rows:
-                    result = result[:max_rows]
-                for row in result:
-                    truncated_row = tuple(
-                        self._truncate_word(column, length=max_str_len)
-                        for column in row
-                    )
-                    truncated_results.append(truncated_row)
-                return {"truncated_results": truncated_results, "fields": list(cursor.keys())}
-            except Exception as e:
-                return {"truncated_results": str(e), "fields": []}
+        try:
+            columns, records = _run_query_with_timeout(self._engine, sql_query)
+            if max_rows:
+                records = records[:max_rows]
+            truncated_results = [
+                tuple(self._truncate_word(col, length=max_str_len) for col in row)
+                for row in records
+            ]
+            return {"truncated_results": truncated_results, "fields": columns}
+        except TimeoutError as e:
+            logger.warning(f"SQL fetch_truncated timeout: {sql_query[:200]}...")
+            return {"truncated_results": str(e), "fields": []}
+        except Exception as e:
+            return {"truncated_results": str(e), "fields": []}
     
     def _truncate_word(self, content: Any, length: int = 30) -> str:
         """截断字符串"""
