@@ -62,6 +62,36 @@ class TestExtractSqlFromQwen:
     def test_empty_string(self):
         assert extract_sql_from_qwen("") == ""
 
+    def test_only_comment_response(self):
+        """LLM 只返回注释/解释文字，无 SQL 代码块 → 返回原文（后续空 SQL 检查会拦截）"""
+        response = "这个查询无法用 SQL 实现，因为 MERGE 语句不被支持。"
+        assert extract_sql_from_qwen(response) == response
+
+    def test_empty_code_block(self):
+        """```sql``` 内为空 → 提取出空字符串（后续空 SQL 检查拦截）"""
+        text = "建议如下：\n```sql\n\n```"
+        assert extract_sql_from_qwen(text) == ""
+
+    def test_sql_surrounded_by_noise(self):
+        """大量无关文本中嵌入有效 SQL 代码块"""
+        text = (
+            "根据您的需求，我生成了以下 SQL：\n\n"
+            "需要注意 GreptimeDB 不支持 approx_percentile，改用 approx_percentile_cont。\n\n"
+            "```sql\n"
+            "SELECT approx_percentile_cont(0.95, greptime_value) FROM t\n"
+            "```\n\n"
+            "这个查询会返回 P95 分位数。"
+        )
+        result = extract_sql_from_qwen(text)
+        assert "approx_percentile_cont" in result
+        assert "0.95" in result
+
+    def test_whitespace_only_sql_block(self):
+        """代码块内只有空白 → 提取出空白字符串"""
+        text = "```sql\n   \n```"
+        result = extract_sql_from_qwen(text)
+        assert result.strip() == ""
+
 
 # ── read_text / save_raw_text ──────────────────────────────────
 

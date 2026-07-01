@@ -657,6 +657,11 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
    e) 时间戳值写成完整的 ISO 字符串 '2026-06-01 00:00:00'，不要简写为 '2026-06-01'
    f) 子查询中避免 SELECT *（DataFusion 可能无法正确展开），尽量显式列出所需列名
    g) date_part 等函数只能用于真正的时间戳列，不能对聚合后的数值列调用
+   h) 部分聚合函数不支持下列 PostgreSQL 写法，必须使用对应的 DataFusion 版本：
+      - 不支持 approx_percentile() → 用 approx_percentile_cont(分位数, 列)，格式为 approx_percentile_cont(0.95, greptime_value)，每个分位数单独计算一列
+      - 不支持 variance() → 用 var_samp() 或 var_pop()
+      - 不支持 percentile_disc() → 用 approx_percentile_cont() 近似替代
+   i) 不支持 MERGE / UPDATE / DELETE 等 DML 语句，只允许 SELECT 查询
 
 """
 
@@ -704,6 +709,11 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
         sql_query = extract_sql_from_qwen(content)
         logger.info(f"Extracted SQL: {sql_query}")
 
+        # LLM 返回空 SQL（无有效代码块）时直接返回错误，不进入数据库执行
+        if not sql_query or not sql_query.strip():
+            logger.warning(f"LLM 生成空 SQL，跳过执行: {content[:200]}")
+            raise ValueError("LLM 生成的 SQL 为空，需重新生成")
+
         # ── 自动注入 LIMIT（若 SQL 最外层无 LIMIT）──
         sql_query, limit_injected = _inject_limit(sql_query)
         if limit_injected:
@@ -715,7 +725,10 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
 
         _data: list = []
         _columns: list = []
-        fetch_result = db_env.database.fetch(sql_query)
+        try:
+            fetch_result = db_env.database.fetch(sql_query)
+        except ValueError as e:
+            fetch_result = (False, str(e))
         status = fetch_result[0]
         if status:
             _data, _columns = fetch_result[1]
@@ -753,7 +766,10 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
                         f"Fixed SQL (Attempt {idx+1}/{max_retries}, "
                         f"type={error_type}): {repaired_sql}"
                     )
-                    fetch_result = db_env.database.fetch(repaired_sql)
+                    try:
+                        fetch_result = db_env.database.fetch(repaired_sql)
+                    except ValueError as e:
+                        fetch_result = (False, str(e))
                     status = fetch_result[0]
                     if status:
                         _data, _columns = fetch_result[1]
@@ -804,6 +820,17 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
         sql_res["_tracking"] = tracking
         return sql_res
 
+    except ValueError as e:
+        err_msg = str(e)
+        logger.warning(f"SQL validation failed: {err_msg}")
+        tracking["exec_error"] = err_msg
+        tracking["error_type"] = classify_error(err_msg)
+        tracking["total_latency_ms"] = round((time.time() - t_start) * 1000, 2)
+        return {
+            "error": err_msg,
+            "error_type": tracking["error_type"],
+            "_tracking": tracking,
+        }
     except Exception as e:
         logger.error(f"SQL generation or execution failed: {e}", exc_info=True)
         tracking["exec_error"] = str(e)
@@ -853,10 +880,13 @@ def sql_fix(
         "function_not_found": (
             "现在你是一个{dialect}数据分析专家。下面的SQL执行时报告**函数不存在**。"
             "请尝试用数据库实际支持的函数替换。\n"
+            "GreptimeDB/DataFusion 支持的聚合函数：COUNT, SUM, AVG, MIN, MAX, STDDEV, var_samp, "
+            "var_pop, approx_percentile_cont(分位数, 列), percentile_cont(分位数, 列)。\n"
             "注意：\n"
-            "1. 用数据库支持的函数实现等价的语义。\n"
-            "2. 如果无法找到等价函数，可以简化查询逻辑。\n"
-            "3. 生成的SQL用```sql 和```包围起来。\n"
+            "1. approx_percentile → 必须写成 approx_percentile_cont(0.95, col)，不是 approx_percentile(col, 0.95)\n"
+            "2. variance → 用 var_samp 或 var_pop 替代\n"
+            "3. 如果无法找到等价函数，可以简化查询逻辑（如用 ORDER BY + LIMIT 近似分位数）\n"
+            "4. 生成的SQL用```sql 和```包围起来。\n"
         ),
         "type_error": (
             "现在你是一个{dialect}数据分析专家。下面的SQL执行时出现了**类型/强制转换错误**。"

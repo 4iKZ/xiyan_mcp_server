@@ -149,7 +149,7 @@ def classify_error(error_message: str) -> str:
     # 注意：failed to plan 不在此处——它可能同时包含 table/column 等关键词，
     # 应让更具体的类型先匹配，failed to plan 在末尾做兜底。
     if any(k in msg for k in ['feature not supported', 'statement is not supported',
-                               'sql statement is not supported']):
+                               'sql statement is not supported', 'merge']):
         return "unsupported_statement"
     if any(k in msg for k in ['failed to coerce', 'cannot coerce', 'coerce arguments']):
         return "type_error"
@@ -175,7 +175,8 @@ def classify_error(error_message: str) -> str:
         return "object_not_found"
 
     # ── 语法 / 解析 ──
-    if any(k in msg for k in ['syntax', '语法', 'parse', 'unexpected']):
+    if any(k in msg for k in ['syntax', '语法', 'parse', 'unexpected',
+                               '为空', '注释', '无效']):
         return "syntax_error"
 
     # ── JOIN / 歧义 ──

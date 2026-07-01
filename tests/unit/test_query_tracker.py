@@ -62,6 +62,29 @@ class TestClassifyError:
     def test_unsupported_statement(self):
         assert classify_error("feature not supported: DELETE") == "unsupported_statement"
 
+    def test_unsupported_statement_merge(self):
+        """MERGE 关键词应归类为 unsupported_statement（修复前归类为 other）"""
+        assert classify_error("不允许使用关键词: MERGE") == "unsupported_statement"
+        assert classify_error("keyword MERGE is not allowed") == "unsupported_statement"
+
+    def test_validation_empty_sql_to_syntax_error(self):
+        """空 SQL 验证错误应归类为 syntax_error，进入 3 次重试循环"""
+        assert classify_error("SQL 查询为空") == "syntax_error"
+        assert classify_error("SQL 查询为空或仅包含注释") == "syntax_error"
+        assert classify_error("SQL 查询无效或仅包含注释") == "syntax_error"
+        assert classify_error("LLM 生成的 SQL 为空，需重新生成") == "syntax_error"
+
+    def test_function_not_found_variance(self):
+        """variance 函数不存在 → function_not_found"""
+        assert classify_error("Invalid function 'variance'. Did you mean 'radians'?") == "function_not_found"
+        assert classify_error("function variance not supported") == "function_not_found"
+
+    def test_type_coercion_approx_percentile(self):
+        """approx_percentile_cont 参数类型不匹配 → type_error"""
+        assert classify_error(
+            "Failed to coerce arguments to satisfy a call to 'approx_percentile_cont'"
+        ) == "type_error"
+
     def test_planner_error(self):
         assert classify_error("failed to plan query") == "planner_error"
 
