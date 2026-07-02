@@ -145,6 +145,7 @@ SLIM_FIELDS = (
     "initial_sql",
     "tool",
     "run_tag",
+    "dialect",
     "exec_success",
     "result_rows",
     "tables_used",
@@ -330,7 +331,10 @@ async def judge_one(
             "success": record.get("exec_success", False),
             "n_rows": record.get("result_rows", 0),
             "preview": record.get("result_preview"),
+            "error": record.get("exec_error"),
+            "error_type": record.get("error_type"),
         }
+        dialect = record.get("dialect")
 
         last_err = None
         for attempt in range(max_retries):
@@ -343,6 +347,7 @@ async def judge_one(
                     exec_summary=exec_summary,
                     database=database,
                     system_prefix=system_prefix,
+                    dialect=dialect,
                 )
                 return slim_record(record, verdict, input_index)
             except JudgeError as e:

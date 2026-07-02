@@ -55,7 +55,19 @@ class JudgeModel:
         "system_failure",     # 被测系统未产出 SQL（脚本直接标记，不进 judge 模型）
     ]
 
+    # GreptimeDB/DataFusion 方言约束摘要（仅在方言匹配时注入 prompt）
+    DIALECT_RULES_GREPTIMEDB = """被测系统使用 GreptimeDB（底层 DataFusion 引擎），以下 PostgreSQL 语法**不兼容**：
+- 没有 DATE() 函数，日期过滤用字符串比较或 NOW()/CURRENT_DATE
+- 不支持 approx_percentile()，须用 approx_percentile_cont()
+- 不支持 variance()，须用 var_samp() / var_pop()
+- SELECT DISTINCT 时 ORDER BY 列必须在 SELECT 中
+- 多表 JOIN 中列引用务必带表别名"""
+
     PROMPT_TEMPLATE = """你是数据库 SQL 审查员。你的任务是判断给定 SQL 是否正确回答了用户问题。
+
+# 被测系统环境
+- 数据库方言：{dialect}
+{dialect_rules}
 
 # 用户问题
 {nl_query}
@@ -73,26 +85,38 @@ class JudgeModel:
 - 返回行数：{n_rows}
 - 前几行预览：
 {result_preview}
+{exec_error_detail}
 
 # 判断要求
 请仔细分析这条 SQL 是否正确回答了用户问题，并按以下规则输出：
 
-- 关于时间条件：SQL 中硬编码的固定年份（如 2023）请忽略，只要时间跨度和逻辑正确（如"最近 7 天""本月"等范围合理），不视为错误。
+## 时间条件判定规则
+- **宽容**：SQL 使用了动态时间函数（NOW()/CURRENT_DATE/INTERVAL），但因模型训练数据截止导致年份基准偏移 → 不视为错误
+- **判错**：用户问题包含相对时间表达（如"最近 N 天/小时""今天""昨天"），但 SQL 全部使用硬编码日期、未使用任何动态时间函数 → 判为 filter_wrong
+- **合理**：用户明确指定了绝对日期（如"2023 年 1 月的数据"），硬编码日期是正确做法 → 不判错
 
-1. **correct**（bool）：True 表示 SQL 正确回答了问题；False 表示存在错误
-2. **category**（必须从下面 7 类中选一个）：
-   - correct：SQL 正确
-   - schema_wrong：用错了表（FROM/JOIN 选错了主体表）
-   - column_wrong：表对，但列引用错误
-   - aggregation_wrong：聚合维度/GROUP BY/HAVING 错误
-   - filter_wrong：WHERE 条件错误（漏限定、错限定、范围错）
-   - syntax：SQL 语法层错误（导致跑不通）
-   - other：其它
-3. **reason**（中文，1~2 句）：简要说明判断依据
+## 错误类别（必须从以下 7 类中选一个）
+1. **correct**：SQL 正确回答了问题
+2. **schema_wrong**：用错了表（FROM/JOIN 选错了主体表）
+3. **column_wrong**：表对，但列引用错误（引用了不存在的列或含义不对的列）
+4. **aggregation_wrong**：聚合维度/GROUP BY/HAVING 错误
+5. **filter_wrong**：WHERE 条件错误（漏限定、错限定、时间范围错）
+6. **syntax**：SQL 语法层错误（在目标方言下跑不通）
+7. **other**：其它
 
-# 输出格式
-**严格输出 JSON 对象**，**不要 markdown 包裹、不要解释、不要 ```json``` 标记**。
-形如：{{"correct": true, "category": "correct", "reason": "..."}}
+# 输出要求
+请先简要分析以下 5 个维度（每维度 1 句话），然后给出结论：
+
+## 分析
+1. **SQL 语义**：这条 SQL 实际在查询什么？
+2. **意图匹配**：与用户问题的意图是否一致？
+3. **表/列选择**：FROM/JOIN 的表是否合理？列引用是否正确？
+4. **聚合与过滤**：聚合函数、GROUP BY、WHERE 条件是否正确？
+5. **时间处理**：如涉及时间条件，是否使用了动态时间函数？
+
+## 结论
+严格输出 JSON 对象：
+{{"correct": true, "category": "correct", "reason": "..."}}
 
 # 你的输出
 """
@@ -164,7 +188,11 @@ class JudgeModel:
         return str(preview)[:500]
 
     def _parse_verdict(self, raw: str) -> Dict:
-        """从模型输出中解析 verdict JSON。容错和 stage2 类似"""
+        """从模型输出中解析 verdict JSON。
+
+        CoT 模式下模型会先输出分析文本再输出 JSON，因此从后往前
+        找最后一个 JSON 对象块，避免误匹配分析文本中的花括号。
+        """
         if not raw:
             raise JudgeError("judge 模型输出为空")
 
@@ -175,9 +203,11 @@ class JudgeModel:
         # 去 markdown 代码块
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
+        # CoT 模式下结论 JSON 可能被 ```json ... ``` 包裹，剥除任意位置的包裹
+        text = re.sub(r"```(?:json)?\s*(\{.*?\})\s*```", r"\1", text, flags=re.DOTALL)
         text = text.strip()
 
-        # 直接解析
+        # 直接解析（整段就是 JSON 的情况）
         try:
             parsed = json.loads(text)
             if isinstance(parsed, dict):
@@ -185,7 +215,21 @@ class JudgeModel:
         except json.JSONDecodeError:
             pass
 
-        # 正则兜底：找第一段 {...}
+        # CoT 兼容：从后往前找最后一个 {"correct": ...} 或 {"correct": ...} 块
+        # 先尝试找所有 {"..." 开头的 JSON 对象位置，取最后一个能解析的
+        last_err = None
+        for m in reversed(list(re.finditer(r'\{\s*"', text))):
+            start = m.start()
+            candidate = text[start:]
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, dict):
+                    return self._normalize_verdict(parsed)
+            except json.JSONDecodeError as e:
+                last_err = e
+                continue
+
+        # 最后的兜底：非嵌套 {...} 匹配
         m = re.search(r"\{[^{}]*\}", text, re.DOTALL)
         if m:
             try:
@@ -197,6 +241,10 @@ class JudgeModel:
                     f"verdict JSON 解析失败: {e}; 原始输出={raw[:300]!r}"
                 )
 
+        if last_err:
+            raise JudgeError(
+                f"verdict JSON 解析失败: {last_err}; 原始输出={raw[:300]!r}"
+            )
         raise JudgeError(f"无法从 judge 输出中提取 JSON; 原始输出={raw[:300]!r}")
 
     def _normalize_verdict(self, parsed: Dict) -> Dict:
@@ -252,6 +300,7 @@ class JudgeModel:
         exec_summary: Dict,
         database: Optional[str] = None,
         system_prefix: Optional[str] = None,
+        dialect: Optional[str] = None,
     ) -> Dict:
         """
         评价单条记录
@@ -263,7 +312,10 @@ class JudgeModel:
                 - success: bool
                 - n_rows: int
                 - preview: list[list] 或 str
+                - error: str (执行错误消息，可选)
+                - error_type: str (错误类型，可选)
             database / system_prefix: 透传给 retriever 做 judge 端 RAG 的过滤
+            dialect: 被测系统的数据库方言（如 greptimedb / mysql / postgresql）
 
         Returns:
             verdict 字典，包含 correct / category / reason /
@@ -279,7 +331,21 @@ class JudgeModel:
             nl_query, database=database, system_prefix=system_prefix,
         )
 
-        # 2. 构 prompt
+        # 2. 构 prompt 的条件段
+        dialect_str = dialect or "未知"
+        dialect_rules = ""
+        if dialect and "greptimedb" in dialect.lower():
+            dialect_rules = self.DIALECT_RULES_GREPTIMEDB
+
+        exec_error_detail = ""
+        exec_error = exec_summary.get("error")
+        if exec_error:
+            exec_error_detail = f"- 错误信息：{str(exec_error)[:300]}"
+            exec_error_type = exec_summary.get("error_type")
+            if exec_error_type:
+                exec_error_detail += f"（类型：{exec_error_type}）"
+
+        # 3. 构 prompt
         prompt = self.PROMPT_TEMPLATE.format(
             nl_query=nl_query,
             judge_schema=judge_schema,
@@ -287,9 +353,12 @@ class JudgeModel:
             exec_status="成功" if exec_summary.get("success") else "失败",
             n_rows=exec_summary.get("n_rows", 0),
             result_preview=self._format_preview(exec_summary.get("preview")),
+            exec_error_detail=exec_error_detail,
+            dialect=dialect_str,
+            dialect_rules=dialect_rules,
         )
 
-        # 3. 调模型
+        # 4. 调模型
         t0 = _time.time()
         try:
             completion = self._client.chat.completions.create(
@@ -315,7 +384,7 @@ class JudgeModel:
 
         logger.debug(f"Judge 原始输出: {raw_output[:300]}")
 
-        # 4. 解析
+        # 5. 解析
         verdict = self._parse_verdict(raw_output)
         verdict.update({
             "judge_model": self.model_name,
