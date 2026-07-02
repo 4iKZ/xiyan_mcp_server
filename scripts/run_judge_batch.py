@@ -148,6 +148,7 @@ SLIM_FIELDS = (
     "dialect",
     "exec_success",
     "result_rows",
+    "fields",
     "tables_used",
     "stage2_enabled",
     "stage1_top_n",
@@ -331,6 +332,7 @@ async def judge_one(
             "success": record.get("exec_success", False),
             "n_rows": record.get("result_rows", 0),
             "preview": record.get("result_preview"),
+            "fields": record.get("fields"),
             "error": record.get("exec_error"),
             "error_type": record.get("error_type"),
         }

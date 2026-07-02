@@ -95,6 +95,26 @@ class JudgeModel:
 - **判错**：用户问题包含相对时间表达（如"最近 N 天/小时""今天""昨天"），但 SQL 全部使用硬编码日期、未使用任何动态时间函数 → 判为 filter_wrong
 - **合理**：用户明确指定了绝对日期（如"2023 年 1 月的数据"），硬编码日期是正确做法 → 不判错
 
+## 判定边界与反例
+- **correct**：SQL 语义与用户意图一致，返回数据能直接回答问题。边界：返回 0 行但 WHERE 条件合理（如该时间段确实无数据）仍判 correct
+- **schema_wrong**：FROM/JOIN 选错了主体表。反例：问"CPU 使用率"却查了 memory_usage 表。边界：表对但多加了不必要的 JOIN 不算 schema_wrong，看整体语义
+- **column_wrong**：表对但列引用错误。反例：问"节点数"但 SELECT 了 instance 而非 node_id。边界：表本身就选错了应归 schema_wrong
+- **aggregation_wrong**：聚合函数/GROUP BY/HAVING 错误。反例：问"总查询数"却用了 AVG 而非 SUM。边界：WHERE 过滤条件错了应归 filter_wrong
+- **filter_wrong**：WHERE 条件错误。反例：问"node_id=2 的数据"但缺少 WHERE node_id='2'。边界：聚合函数本身选错应归 aggregation_wrong
+- **syntax**：SQL 在目标方言下语法不合法。边界：语法正确但语义不对应归入上述类别
+- **other**：无法归入上述类别的情况
+
+## 特殊场景判定规则
+### 0 行结果（返回行数为 0）
+- SQL 语义正确但数据库无匹配数据 → 判 **correct**（SQL 逻辑无误，数据问题不归责于 SQL）
+- WHERE 条件本身写错（过滤值错误、列名不对）导致漏掉所有行 → 判 **filter_wrong**
+- 引用了错误的表/列导致返回空 → 判对应的 **schema_wrong** / **column_wrong**
+
+### 多列或多表 JOIN
+- SELECT 了多个列但用户只问了一个指标 → 不算错（多返回不扣分），除非多余列导致语义偏差
+- JOIN 了多余的表但不影响最终结果正确性 → 不算 schema_wrong
+- JOIN 条件缺失（笛卡尔积）→ 判 **syntax** 或 **other**
+
 ## 错误类别（必须从以下 7 类中选一个）
 1. **correct**：SQL 正确回答了问题
 2. **schema_wrong**：用错了表（FROM/JOIN 选错了主体表）
@@ -171,17 +191,26 @@ class JudgeModel:
         except Exception as e:
             raise JudgeError(f"judge 端 RAG 失败: {e}") from e
 
-    def _format_preview(self, preview) -> str:
-        """把 result_preview（list of list 或 字符串）格式化成短文本"""
+    def _format_preview(self, preview, fields=None) -> str:
+        """把 result_preview（list of list 或 字符串）格式化成短文本，可选带列头"""
         if preview is None:
             return "（无数据）"
         if isinstance(preview, str):
             return preview[:500] if preview else "（空）"
         if isinstance(preview, list):
             lines = []
+            # 列头行
+            if fields and isinstance(fields, list) and len(fields) > 0:
+                lines.append("【列】 " + " | ".join(str(f)[:40] for f in fields))
             for row in preview[:3]:
                 if isinstance(row, list):
-                    lines.append(" | ".join(str(c)[:60] for c in row))
+                    # 有列头且长度匹配时输出 field=value 格式
+                    if fields and len(fields) == len(row):
+                        lines.append(" | ".join(
+                            f"{f}={str(v)[:50]}" for f, v in zip(fields, row)
+                        ))
+                    else:
+                        lines.append(" | ".join(str(c)[:60] for c in row))
                 else:
                     lines.append(str(row)[:200])
             return "\n".join(lines) if lines else "（空）"
@@ -312,6 +341,7 @@ class JudgeModel:
                 - success: bool
                 - n_rows: int
                 - preview: list[list] 或 str
+                - fields: list[str] (列名/表头，可选)
                 - error: str (执行错误消息，可选)
                 - error_type: str (错误类型，可选)
             database / system_prefix: 透传给 retriever 做 judge 端 RAG 的过滤
@@ -352,7 +382,10 @@ class JudgeModel:
             generated_sql=generated_sql,
             exec_status="成功" if exec_summary.get("success") else "失败",
             n_rows=exec_summary.get("n_rows", 0),
-            result_preview=self._format_preview(exec_summary.get("preview")),
+            result_preview=self._format_preview(
+                exec_summary.get("preview"),
+                fields=exec_summary.get("fields"),
+            ),
             exec_error_detail=exec_error_detail,
             dialect=dialect_str,
             dialect_rules=dialect_rules,
