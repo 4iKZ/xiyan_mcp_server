@@ -607,7 +607,7 @@ def _inject_limit(sql: str) -> tuple:
 
     # 检测聚合函数
     has_agg = bool(re.search(
-        r'\b(COUNT|SUM|AVG|MAX|MIN|GROUP\s+BY|stddev|var_|approx_percentile)\b',
+        r'\b(COUNT|SUM|AVG|MAX|MIN|GROUP\s+BY|stddev|var_|approx_percentile|WITHIN\s+GROUP)\b',
         sql, re.IGNORECASE,
     ))
     limit_val = 1000 if has_agg else 500
@@ -650,7 +650,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     dialect_rules = ""
     if "greptimedb" in db_env.dialect.lower():
         dialect_rules = """5、GreptimeDB 底层使用 DataFusion 查询引擎，以下 PostgreSQL 语法不兼容，必须避免：
-   a) 没有 DATE() 函数，日期过滤用字符串比较或 NOW()/CURRENT_DATE 函数：greptime_timestamp >= '2026-06-01 00:00:00' 或 greptime_timestamp >= NOW() - INTERVAL '7 days'
+   a) 没有 DATE() 函数，日期过滤用字符串比较或 NOW()/CURRENT_DATE 函数：greptime_timestamp >= '2026-06-01 00:00:00' 或 greptime_timestamp >= NOW() - INTERVAL '7 days'；需要按天聚合时用 date_trunc('day', 列) 替代 DATE(列)
    b) SELECT DISTINCT 时，ORDER BY 的所有列必须出现在 SELECT 列表中
    c) 时间戳之间不能做乘除运算（timestamp/timestamp 或 timestamp*n 等不支持）
    d) 多表 JOIN 或子查询中，列引用务必带表别名（如 t.node_id），避免仅写 node_id
@@ -658,7 +658,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
    f) 子查询中避免 SELECT *（DataFusion 可能无法正确展开），尽量显式列出所需列名
    g) date_part 等函数只能用于真正的时间戳列，不能对聚合后的数值列调用
    h) 部分聚合函数不支持下列 PostgreSQL 写法，必须使用对应的 DataFusion 版本：
-      - 不支持 approx_percentile() → 用 approx_percentile_cont(分位数, 列)，格式为 approx_percentile_cont(0.95, greptime_value)，每个分位数单独计算一列
+      - 不支持 approx_percentile() → 用 approx_percentile_cont(分位数) WITHIN GROUP (ORDER BY 列)，格式为 approx_percentile_cont(0.95) WITHIN GROUP (ORDER BY greptime_value)，每个分位数单独计算一列；也支持 median(列) 作为 P50 简写
       - 不支持 variance() → 用 var_samp() 或 var_pop()
       - 不支持 percentile_disc() → 用 approx_percentile_cont() 近似替代
    i) 不支持 MERGE / UPDATE / DELETE 等 DML 语句，只允许 SELECT 查询
@@ -881,9 +881,9 @@ def sql_fix(
             "现在你是一个{dialect}数据分析专家。下面的SQL执行时报告**函数不存在**。"
             "请尝试用数据库实际支持的函数替换。\n"
             "GreptimeDB/DataFusion 支持的聚合函数：COUNT, SUM, AVG, MIN, MAX, STDDEV, var_samp, "
-            "var_pop, approx_percentile_cont(分位数, 列), percentile_cont(分位数, 列)。\n"
+            "var_pop, approx_percentile_cont(分位数) WITHIN GROUP (ORDER BY 列), percentile_cont(分位数) WITHIN GROUP (ORDER BY 列)。\n"
             "注意：\n"
-            "1. approx_percentile → 必须写成 approx_percentile_cont(0.95, col)，不是 approx_percentile(col, 0.95)\n"
+            "1. approx_percentile → 必须写成 approx_percentile_cont(0.95) WITHIN GROUP (ORDER BY col)，不是 approx_percentile(col, 0.95)\n"
             "2. variance → 用 var_samp 或 var_pop 替代\n"
             "3. 如果无法找到等价函数，可以简化查询逻辑（如用 ORDER BY + LIMIT 近似分位数）\n"
             "4. 生成的SQL用```sql 和```包围起来。\n"

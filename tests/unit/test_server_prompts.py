@@ -34,6 +34,8 @@ class TestDialectRules:
     def test_rules_contain_datetime_rules(self):
         assert "DATE()" in self.rules
         assert "NOW()" in self.rules or "CURRENT_DATE" in self.rules
+        assert "date_trunc" in self.rules, \
+            "应包含 date_trunc 作为 DATE() 的替代方案"
 
     def test_rules_contain_function_restrictions(self):
         """改动 1：规则应包含函数限制部分 (h)"""
@@ -45,6 +47,10 @@ class TestDialectRules:
             "应包含 variance 替换为 var_samp 的说明"
         assert "var_samp()" in self.rules or "var_pop()" in self.rules, \
             "应包含 var_samp/var_pop 替代方案"
+        assert "WITHIN GROUP" in self.rules, \
+            "approx_percentile_cont 应使用 WITHIN GROUP (ORDER BY ...) 语法"
+        assert "median" in self.rules, \
+            "应包含 median(列) 简写语法说明"
 
     def test_rules_contain_merge_prohibition(self):
         """改动 1：规则应禁止 MERGE/DML 语句"""
@@ -95,6 +101,8 @@ class TestFunctionNotFoundFixPrompt:
             "应包含 approx_percentile_cont 的正确参数格式示例"
         assert "ORDER BY" in self.prompt or "LIMIT" in self.prompt, \
             "应包含 ORDER BY + LIMIT 近似分位数的替代方案"
+        assert "WITHIN GROUP" in self.prompt, \
+            "修复提示应使用 WITHIN GROUP (ORDER BY ...) 语法"
 
 
 # ── 空 SQL 保护机制验证 ───────────────────────────────────────────
