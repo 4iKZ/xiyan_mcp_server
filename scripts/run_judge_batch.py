@@ -299,6 +299,7 @@ def init_components(config: dict):
             f"(metrics noise0: {metrics_loaded}, 其他: {other_loaded})"
         )
     retriever.kb_table_descriptions = kb_descriptions
+    retriever.stage3_table_descriptions = dict(kb_descriptions)  # judge 端 stage3 也强制 noise0
     logger.info(f"知识库表描述已加载: {len(kb_descriptions)} 张表（已跳过噪声文件）")
 
     return retriever, db_cfg.get("database"), system_prefix

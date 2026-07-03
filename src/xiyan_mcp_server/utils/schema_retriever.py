@@ -83,7 +83,27 @@ class SchemaRetriever:
                     logger.warning(f"加载知识库文件失败 {kf}: {e}")
         if self.kb_table_descriptions:
             logger.info(f"知识库表描述已加载: {len(self.kb_table_descriptions)} 张表")
-    
+
+        # ── Stage3 描述：可被噪声切换脚本覆写（sidecar），fallback 到 kb_table_descriptions ──
+        # sidecar 路径约定：{kb_path}/.stage3/*_knowledge.json
+        # glob("*.json") 不递归子目录，.stage3/ 不会污染 kb_table_descriptions
+        self.stage3_table_descriptions: Dict[str, str] = dict(self.kb_table_descriptions)
+        stage3_dir = kb_path / ".stage3"
+        if stage3_dir.is_dir():
+            for sf in stage3_dir.glob("*_knowledge.json"):
+                try:
+                    data = json.loads(sf.read_text(encoding="utf-8"))
+                    if not isinstance(data, list):
+                        continue
+                    for t in data:
+                        ec = t.get("embedding_content", "")
+                        if ec:
+                            self.stage3_table_descriptions[t["table_name"].lower()] = ec
+                except Exception as e:
+                    logger.warning(f"加载 stage3 sidecar 失败 {sf}: {e}")
+            if self.stage3_table_descriptions:
+                logger.info(f"Stage3 描述已加载: {len(self.stage3_table_descriptions)} 张表 (from {stage3_dir})")
+
     def _get_matched_database_tags(self, prefix: str) -> List[str]:
         """
         从 Redis 获取所有匹配前缀的 database 标签
@@ -315,7 +335,7 @@ class SchemaRetriever:
                 comment = table_info.get('comment', '')
                 if not comment:
                     short = actual_table_name.split('.', 1)[-1] if '.' in actual_table_name else actual_table_name
-                    ec = self.kb_table_descriptions.get(short.lower(), '')
+                    ec = self.stage3_table_descriptions.get(short.lower(), '')
                     if ec:
                         # embedding_content 格式："表名: xxx。名称: xxx。描述: xxx。业务含义: xxx。"
                         # 去掉开头重复的"表名: "，截 250 字符

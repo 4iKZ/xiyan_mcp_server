@@ -7,6 +7,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COCKROACH_DIR="$PROJECT_ROOT/json/cockroach"
 BACKUP_DIR="$COCKROACH_DIR/.noisebackup"
 ACTIVE_FILE="$COCKROACH_DIR/cockroach_metrics_knowledge.json"
+STAGE3_DIR="$COCKROACH_DIR/.stage3"
+STAGE3_FILE="$STAGE3_DIR/cockroach_metrics_knowledge.json"
 INDEX_NAME="xiyan_schema_cockroach"
 CONFIG="$PROJECT_ROOT/src/xiyan_mcp_server/config.yml"
 INDEX_SCRIPT="$PROJECT_ROOT/scripts/index_knowledge.py"
@@ -37,6 +39,12 @@ if [[ ! -f "$NOISE0_BACKUP" ]]; then
         err "活动文件 $ACTIVE_FILE 不存在，且无 noise0 备份"
         exit 1
     fi
+fi
+
+# ── 1.5 确保主文件是 noise0（兼容旧脚本可能已替换主文件的情况）──
+if ! cmp -s "$ACTIVE_FILE" "$NOISE0_BACKUP"; then
+    log "主文件与 noise0 不一致，恢复为 noise0"
+    cp "$NOISE0_BACKUP" "$ACTIVE_FILE"
 fi
 
 # ── 2. 清场：将当前目录下的噪声文件移入 .noisebackup/ ──
@@ -84,37 +92,30 @@ if [[ ! -f "$TARGET" ]]; then
     exit 1
 fi
 
-# ── 4. 激活目标版本 ──
+# ── 4. 激活目标版本（写 sidecar，不替换主文件，不重建 Redis）──
 log "激活版本: $LABEL"
-cp "$TARGET" "$ACTIVE_FILE"
-
-# 验证：目录下只剩 noise0 主文件，无其他噪声文件
-if ls "$COCKROACH_DIR"/*_noise*.json >/dev/null 2>&1; then
-    err "目录中仍有噪声文件残留！"
-    ls "$COCKROACH_DIR"/*_noise*.json
-    exit 1
+if [[ "$CHOICE" == "0" ]]; then
+    rm -f "$STAGE3_FILE"
+    rmdir "$STAGE3_DIR" 2>/dev/null || true
+    log "noise0: 已删除 sidecar，Stage3 将 fallback 到主知识库 (noise0)"
+else
+    mkdir -p "$STAGE3_DIR"
+    cp "$TARGET" "$STAGE3_FILE"
+    log "已写入 sidecar: $STAGE3_FILE"
 fi
-log "json/cockroach/ 目录干净，仅含目标版本"
+log "主文件保持不变: $ACTIVE_FILE (noise0)"
 
-# ── 5. 删除旧索引 ──
-log "删除 Redis 索引: $INDEX_NAME"
-docker exec redis-stack redis-cli FT.DROPINDEX "$INDEX_NAME" DD 2>/dev/null || warn "索引可能不存在，继续重建"
+# ── 5. Redis 索引保持不变 ──
+log "Redis 索引保持不变 (始终基于 noise0)"
 
-# ── 6. 重建索引 ──
-log "重建索引..."
-cd "$PROJECT_ROOT"
-PYTHONPATH="$PYTHONPATH" /usr/bin/python "$INDEX_SCRIPT" \
-    --config "$CONFIG" \
-    --system cockroach \
-    --rebuild
-
-# ── 7. 完成 ──
+# ── 6. 完成 ──
 echo ""
 echo "============================================"
 echo "  ✅ 切换完成"
 echo "  当前版本: $LABEL"
-echo "  Redis 索引: $INDEX_NAME"
-echo "  kb_table_descriptions 来源: $(basename "$ACTIVE_FILE")"
+echo "  主文件: noise0 (Stage1/2 使用，不变)"
+echo "  Stage3 sidecar: $([ -f "$STAGE3_FILE" ] && echo '存在' || echo '不存在（fallback noise0）')"
+echo "  Redis 索引: $INDEX_NAME (未重建，保持 noise0)"
 echo "============================================"
 echo ""
 echo -e "${YELLOW}下一步请手动重启服务:${NC}"
