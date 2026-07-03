@@ -9,7 +9,7 @@
   pytest                          # 仅运行单元测试（默认）
   pytest -m integration           # 运行集成测试（需要 MCP Server）
   pytest -m e2e                   # 运行端到端测试
-  pytest -a                       # 运行全部测试
+  pytest -m ""                    # 运行全部测试（含 unit/integration/e2e）
 """
 
 import os
