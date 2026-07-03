@@ -400,13 +400,13 @@ python scripts/index_knowledge.py --config src/xiyan_mcp_server/config.yml --reb
 
 ### 检查 Schema
 
-```bash
-# 检查 Schema 知识库
-python check_schema.py
+本项目无需独立检查脚本。可通过以下方式验证 Schema 配置正确性:
 
-# 检查表结构
-python check_tables.py
-```
+- 启动 MCP server,读取 `greptimedb://<database>` 资源查看完整 schema
+- 启用 schema_filter 后,观察 query_tracker 日志中的 filtered_table_names 字段
+- 离线分析: 用 `scripts/analyze_judge_results.py` 评估 SQL 生成质量
+
+对应命令参考 `docs/dev-guide/EXPERIMENT_COMMANDS.md`。
 
 ## 测试
 
