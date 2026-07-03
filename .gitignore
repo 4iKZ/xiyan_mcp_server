@@ -70,7 +70,7 @@ Thumbs.db
 # Claude AI
 .claude/
 .trae/
-docs/
+docs/research-log/
 query_tracker_logs/
 # Project-specific
 CLAUDE.md
