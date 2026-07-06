@@ -29,6 +29,7 @@ mkdir -p "$BACKUP_DIR"
 NOISE0_BACKUP="$BACKUP_DIR/cockroach_metrics_knowledge_noise0.json"
 NOISE50_BACKUP="$BACKUP_DIR/cockroach_metrics_knowledge_noise50.json"
 NOISE100_BACKUP="$BACKUP_DIR/cockroach_metrics_knowledge_noise100.json"
+NOISE500_BACKUP="$BACKUP_DIR/cockroach_metrics_knowledge_noise500.json"
 
 # 如果 noise0 备份还不存在，从当前活动文件（就是 noise0）复制一份
 if [[ ! -f "$NOISE0_BACKUP" ]]; then
@@ -65,9 +66,10 @@ echo ""
 echo "============================================"
 echo "  Cockroach 噪声版本切换"
 echo "============================================"
-echo "  0  - noise0   (干净，无噪声)"
-echo "  50 - noise50  (50% 噪声)"
-echo "  100- noise100 (100% 噪声)"
+echo "  0   - noise0   (干净，无噪声)"
+echo "  50  - noise50  (50% 噪声)"
+echo "  100 - noise100 (100% 噪声)"
+echo "  500 - noise500 (1真4噪声混排，名称/描述打乱)"
 echo "============================================"
 read -r -p "请选择 [0/50/100]: " CHOICE
 
@@ -80,6 +82,9 @@ case "$CHOICE" in
         ;;
     100) TARGET="$NOISE100_BACKUP"
         LABEL="noise100"
+        ;;
+    500) TARGET="$NOISE500_BACKUP"
+        LABEL="noise500"
         ;;
     *)
         err "无效选择: $CHOICE"

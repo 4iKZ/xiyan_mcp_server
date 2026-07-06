@@ -338,7 +338,7 @@ class SchemaRetriever:
                     ec = self.stage3_table_descriptions.get(short.lower(), '')
                     if ec:
                         # embedding_content 格式："表名: xxx。名称: xxx。描述: xxx。业务含义: xxx。"
-                        # 去掉开头重复的"表名: "，截 250 字符
+                        # 去掉开头重复的"表名: "前缀，保留全文（无显式截断，由 LLM context window 决定可见范围）
                         ec_clean = ec.replace('\n', ' ').strip()
                         if ec_clean.startswith('表名:'):
                             # 跳过"表名: xxx。"，从"名称:"或"描述:"开始
