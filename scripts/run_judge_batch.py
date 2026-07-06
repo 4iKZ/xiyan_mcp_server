@@ -538,6 +538,32 @@ async def main_async(args):
 
     print(f"输出: {output_path.absolute()}")
 
+    # 9. 发送完成通知邮件（失败不影响主流程）
+    _status = (
+        "success" if stats["fail"] == 0
+        else "failed" if stats["ok"] == 0
+        else "partial"
+    )
+    try:
+        from xiyan_mcp_server.utils.mail_util import send_completion_email
+        send_completion_email(
+            script_name="run_judge_batch.py",
+            status=_status,
+            stats={
+                "total": total,
+                "ok": stats["ok"],
+                "fail": stats["fail"],
+                "correct": stats["correct"],
+                "incorrect": stats["incorrect"],
+                "accuracy": f"{acc:.1f}%",
+                "elapsed_min": f"{elapsed_min:.1f}",
+                "output": str(output_path.absolute()),
+            },
+            config_path=args.config,
+        )
+    except Exception as e:
+        logger.warning(f"发送完成通知邮件失败: {e}")
+
 
 def _sort_output_file(path: Path) -> None:
     """读全部记录、按 input_index 排序、重写。无 input_index 的记录排到末尾。"""

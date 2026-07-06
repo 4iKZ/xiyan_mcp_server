@@ -94,6 +94,8 @@ async def main():
     parser.add_argument("--delay", type=int, default=10)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--input", type=str, default="queries.jsonl")
+    parser.add_argument("--config", type=str, default="src/xiyan_mcp_server/config.yml",
+                        help="config.yml 路径（用于发送完成通知邮件）")
     s2_group = parser.add_mutually_exclusive_group()
     s2_group.add_argument("--stage2", dest="stage2", action="store_true",
                           help="本次跑启用二级筛选（覆盖 yml 默认）")
@@ -226,6 +228,31 @@ async def main():
     if total > 0:
         print(f"成功率: {stats['ok']/total*100:.1f}%")
     print(f"追踪数据: {Path('query_tracker_logs').absolute()}/")
+
+    # 发送完成通知邮件（失败不影响主流程）
+    _status = (
+        "success" if stats["fail"] == 0
+        else "failed" if stats["ok"] == 0
+        else "partial"
+    )
+    try:
+        from xiyan_mcp_server.utils.mail_util import send_completion_email
+        send_completion_email(
+            script_name="batch_test_queries.py",
+            status=_status,
+            stats={
+                "total": total,
+                "ok": stats["ok"],
+                "fail": stats["fail"],
+                "success_rate": f"{stats['ok']/total*100:.1f}%" if total else "0%",
+                "elapsed_min": f"{elapsed_min:.1f}",
+                "input": str(input_path),
+                "tag": args.tag,
+            },
+            config_path=args.config,
+        )
+    except Exception as e:
+        print(f"[warn] 发送完成通知邮件失败: {e}")
 
 
 if __name__ == "__main__":
