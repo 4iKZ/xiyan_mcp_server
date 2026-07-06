@@ -98,6 +98,9 @@ xiyan_mcp_server.wiki/
 
 
 json/cockroach/.noisebackup/
+# noise script runtime sidecar（避免误提交 noise50/100 数据）
+json/cockroach/.stage3/
+**/.stage3/
 full_table_list.txt
 
 query_logs.zip
