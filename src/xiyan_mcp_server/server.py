@@ -16,7 +16,7 @@ from mcp.types import TextContent
 
 from .database_env import DataBaseEnv
 from .utils.db_config import DBConfig
-from .utils.db_source import HITLSQLDatabase
+from .utils.db_source import HITLSQLDatabase, shutdown_sql_executor
 from .utils.db_util import init_db_conn
 from .utils.file_util import extract_sql_from_qwen
 from .utils.hdfs_util import HDFSUploader, convert_to_parquet_and_upload
@@ -94,6 +94,12 @@ def signal_handler(sig, frame):
             logger.info("数据库连接池已释放")
         except Exception as e:
             logger.error(f"释放数据库连接时出错: {e}")
+
+    # 清理 SQL 执行线程池
+    try:
+        shutdown_sql_executor()
+    except Exception as e:
+        logger.error(f"关闭 SQL 线程池时出错: {e}")
 
     # 清理 Redis 连接（如果启用）
     if schema_filter_enabled:
@@ -239,6 +245,30 @@ def get_db_engine():
                 _db_engine = init_db_conn(global_xiyan_db_config)
                 logger.info("全局数据库引擎已初始化")
     return _db_engine
+
+# 全局 db_source 单例（避免每个请求重复创建数据源对象）
+_db_source = None
+_db_source_lock = threading.Lock()
+
+
+def get_db_source():
+    """获取全局数据源单例（线程安全）
+
+    共享同一个 db_source 对象，底层的 SQLAlchemy Engine 连接池已共享，
+    同时避免 HITLSQLDatabase/GreptimeDBSource 的重复初始化开销
+    （如 MetaData reflect、表列表加载等）。
+    """
+    global _db_source
+    if _db_source is None:
+        with _db_source_lock:
+            if _db_source is None:
+                _db_source = create_db_source(
+                    get_db_engine(), dialect,
+                    global_db_config.get("database", ""),
+                    system_prefix=global_system_prefix
+                )
+                logger.info("全局 db_source 已初始化")
+    return _db_source
 
 # Schema 过滤配置
 schema_filter_config = global_config.get("schema_filter", {})
@@ -499,12 +529,7 @@ def read_resource() -> str:
 
     # 缓存未命中或已过期，生成新的 Schema
     logger.info(f"生成新的 Schema: {cache_key}")
-    db_engine = get_db_engine()
-    db_source = create_db_source(
-        db_engine, dialect,
-        global_db_config.get("database", ""),
-        system_prefix=global_system_prefix
-    )
+    db_source = get_db_source()
 
     # 限制最大表数为 500
     schema_str = db_source.mschema.to_mschema(max_tables=500)
@@ -531,7 +556,7 @@ def read_resource(table_name) -> str:
         return "服务器正在关闭，暂时不接受新请求"
     try:
         db_engine = get_db_engine()
-        db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
+        db_source = get_db_source()
 
         # 验证表名是否存在（防止SQL注入）- 白名单验证
         if table_name not in db_source.mschema.tables:
@@ -1056,8 +1081,7 @@ def call_xiyan(
 
     logger.info(f"Calling tool with arguments: {query}")
     try:
-        db_engine = get_db_engine()
-        db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
+        db_source = get_db_source()
     except Exception as e:
         return "数据库连接失败" + str(e)
 
@@ -1377,9 +1401,8 @@ def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = 
             logger.info(f"剥离路径后的查询: {sql_query[:120]}")
 
     try:
-        # 初始化数据库连接
-        db_engine = get_db_engine()
-        db_source = create_db_source(db_engine, dialect, global_db_config.get("database", ""), system_prefix=global_system_prefix)
+        # 获取数据库连接
+        db_source = get_db_source()
     except Exception as e:
         logger.error(f"数据库连接失败: {e}")
         return [TextContent(type="text", text=f"数据库连接失败: {str(e)}")]

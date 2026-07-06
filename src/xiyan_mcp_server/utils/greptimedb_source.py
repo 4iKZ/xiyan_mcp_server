@@ -4,7 +4,6 @@ GreptimeDB 专用数据源类
 由于 llama_index.SQLDatabase 在初始化时会使用 SQLAlchemy 自动加载表结构，
 这与 GreptimeDB 的 pg_catalog 不兼容，因此需要自定义实现。
 """
-import concurrent.futures
 import logging
 import os
 import threading
@@ -16,34 +15,11 @@ from sqlalchemy.engine import Engine
 
 from .db_mschema import MSchema
 from .db_util import examples_to_str, preprocess_sql_query
-from .db_source import validate_sql_query
+from .db_source import validate_sql_query, _run_query_with_timeout
 
 logger = logging.getLogger(__name__)
 
 SQL_EXECUTE_TIMEOUT = int(os.getenv("SQL_EXECUTE_TIMEOUT", "60"))
-
-
-def _run_query_with_timeout(engine, sql_query: str, timeout: int = SQL_EXECUTE_TIMEOUT):
-    """在独立线程中执行 SQL 查询，超时抛出 TimeoutError。
-
-    executor 线程使用**独立连接**，与主线程零共享，彻底消除线程安全问题。
-    """
-    def _do_query():
-        with engine.begin() as conn:
-            cursor = conn.execute(text(sql_query))
-            columns = list(cursor.keys())
-            records = cursor.fetchall()
-            return columns, records
-
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    try:
-        future = executor.submit(_do_query)
-        return future.result(timeout=timeout)
-    except concurrent.futures.TimeoutError:
-        executor.shutdown(wait=False)
-        raise TimeoutError(f"SQL 执行超时 ({timeout}s)")
-    else:
-        executor.shutdown(wait=True)
 
 
 class GreptimeDBSource:

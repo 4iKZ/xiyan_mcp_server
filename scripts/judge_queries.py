@@ -146,9 +146,11 @@ async def judge_one(judge_model_url: str, judge_model_name: str, judge_api_key: 
         )
         raw = response.choices[0].message.content
     else:
-        # Fallback: 用 openai 库直接调用
+        # Fallback: 用 openai 库直接调用（复用客户端）
         from openai import OpenAI
-        client = OpenAI(api_key=judge_api_key, base_url=judge_model_url)
+        if not hasattr(judge_one, '_fallback_client') or judge_one._fallback_client is None:
+            judge_one._fallback_client = OpenAI(api_key=judge_api_key, base_url=judge_model_url)
+        client = judge_one._fallback_client
         resp = client.chat.completions.create(
             model=judge_model_name,
             messages=[

@@ -6,6 +6,8 @@ Embedding 服务模块
 import logging
 from typing import List, Optional
 import numpy as np
+import requests
+from requests.adapters import HTTPAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,12 @@ class EmbeddingService:
 
         if not self.use_api:
             self._init_local_model()
+        else:
+            # API 模式：复用 HTTP Session（复用 TCP 连接池，避免每次调用重建连接）
+            self._session = requests.Session()
+            adapter = HTTPAdapter(pool_connections=4, pool_maxsize=8)
+            self._session.mount("http://", adapter)
+            self._session.mount("https://", adapter)
     
     def _init_local_model(self):
         """初始化本地模型"""
@@ -154,11 +162,9 @@ class EmbeddingService:
         2. ModelScope 云端 API（自动添加 encoding_format 参数）
         """
         try:
-            import requests
-
             if self.use_vllm_format:
                 # 本地 vLLM 使用 OpenAI 兼容格式：input 字段
-                response = requests.post(
+                response = self._session.post(
                     f"{self.api_url}embeddings",
                     headers={
                         "Content-Type": "application/json",
@@ -177,7 +183,7 @@ class EmbeddingService:
                 return embeddings
             else:
                 # ModelScope 云端 API：需要 encoding_format 参数
-                response = requests.post(
+                response = self._session.post(
                     f"{self.api_url}embeddings",
                     headers={
                         "Content-Type": "application/json",

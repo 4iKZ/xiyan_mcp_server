@@ -1,5 +1,6 @@
 import concurrent.futures
 import os
+import threading
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 import sqlparse
@@ -10,28 +11,61 @@ logger = logging.getLogger("xiyan_mcp_server.db_source")
 
 SQL_EXECUTE_TIMEOUT = int(os.getenv("SQL_EXECUTE_TIMEOUT", "60"))
 
+# 全局 SQL 执行线程池（复用，避免每次查询创建/销毁线程开销）
+_sql_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+_sql_executor_lock = threading.Lock()
+
+
+def get_sql_executor() -> concurrent.futures.ThreadPoolExecutor:
+    """获取全局 SQL 执行线程池（线程安全，延迟初始化）"""
+    global _sql_executor
+    if _sql_executor is None:
+        with _sql_executor_lock:
+            if _sql_executor is None:
+                max_workers = int(os.getenv("SQL_THREAD_POOL_SIZE", "8"))
+                _sql_executor = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=max_workers,
+                    thread_name_prefix="sql-exec",
+                )
+                logger.info(f"SQL 执行线程池已初始化: max_workers={max_workers}")
+    return _sql_executor
+
+
+def shutdown_sql_executor() -> None:
+    """关闭全局 SQL 执行线程池（供服务器关闭时调用）"""
+    global _sql_executor
+    with _sql_executor_lock:
+        if _sql_executor is not None:
+            _sql_executor.shutdown(wait=False)
+            _sql_executor = None
+            logger.info("SQL 执行线程池已关闭")
+
+
+def _do_query(engine, sql_query: str):
+    """在独立连接中执行 SQL 查询（供线程池 submit 使用）"""
+    with engine.begin() as conn:
+        cursor = conn.execute(text(sql_query))
+        columns = list(cursor.keys())
+        records = [tuple(row) for row in cursor.fetchall()]
+        return columns, records
+
 
 def _run_query_with_timeout(engine, sql_query: str, timeout: int = SQL_EXECUTE_TIMEOUT):
-    """在独立线程中执行 SQL 查询，超时抛出 TimeoutError。
+    """在全局线程池中执行 SQL 查询，超时抛出 TimeoutError。
 
-    executor 线程使用**独立连接**，与主线程零共享，彻底消除线程安全问题。
+    使用全局共享的 ThreadPoolExecutor，避免每次查询创建/销毁线程。
+    超时时通过 future.cancel() 取消任务（线程会自然结束于 SQL 执行完成）。
     """
-    def _do_query():
-        with engine.begin() as conn:
-            cursor = conn.execute(text(sql_query))
-            columns = list(cursor.keys())
-            records = [tuple(row) for row in cursor.fetchall()]
-            return columns, records
-
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    executor = get_sql_executor()
+    future = executor.submit(_do_query, engine, sql_query)
     try:
-        future = executor.submit(_do_query)
         return future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
-        executor.shutdown(wait=False)
+        future.cancel()
+        logger.warning(
+            f"SQL 执行超时 ({timeout}s)，线程仍占用池槽位: {sql_query[:200]}"
+        )
         raise TimeoutError(f"SQL 执行超时 ({timeout}s)")
-    else:
-        executor.shutdown(wait=True)
 
 from llama_index.core import SQLDatabase
 from sqlalchemy import MetaData, Table, select, text
