@@ -142,7 +142,10 @@ def classify_error(error_message: str) -> str:
         return "timeout"
     if any(k in msg for k in ['permission', '权限', 'denied', 'access denied']):
         return "permission_denied"
-    if any(k in msg for k in ['connection', '连接', 'refused', 'cannot connect']):
+    if any(k in msg for k in ['connection refused', 'closed the connection',
+                               'cannot connect', 'connection to server',
+                               'server closed', 'connection terminated',
+                               '连接被', '连接失败']):
         return "connection_error"
 
     # ── GreptimeDB / DataFusion 特有模式（精确子串，先于泛型匹配）──

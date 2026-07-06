@@ -59,6 +59,29 @@ class TestDialectRules:
         assert "SELECT" in self.rules, \
             "应提示只允许 SELECT"
 
+    def test_rules_prohibit_union(self):
+        """改动 2 (本次)：规则应禁止 UNION/UNION ALL/多语句"""
+        assert "UNION" in self.rules, \
+            "应包含 UNION 关键字的禁止说明"
+        assert "禁止" in self.rules, \
+            "应使用'禁止'明确的否定词"
+        assert "CASE WHEN" in self.rules, \
+            "应推荐 CASE WHEN 并列聚合改写"
+
+    def test_rules_have_distinct_orderby_with_example(self):
+        """改动 3 (本次)：DISTINCT+ORDER BY 规则应附反例代码"""
+        assert "SELECT DISTINCT" in self.rules
+        assert "ORDER BY" in self.rules
+        assert "must appear in select list" in self.rules, \
+            "应包含完整报错信息作为反例锚点"
+
+    def test_rules_prohibit_multi_statement(self):
+        """改动 4 (本次)：规则应禁止分号分隔的多条 SQL"""
+        assert "分号" in self.rules, \
+            "应明确禁止用分号分隔多个 SELECT 语句"
+        assert "只允许" in self.rules, \
+            "应说明只允许单个 SQL 语句"
+
 
 # ── function_not_found 修复提示验证 ────────────────────────────────
 

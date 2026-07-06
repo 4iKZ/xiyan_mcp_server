@@ -641,7 +641,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
    b) "最近N天" → greptime_timestamp >= NOW() - INTERVAL 'N days'
    c) "今天" → greptime_timestamp >= CURRENT_DATE AND greptime_timestamp < CURRENT_DATE + INTERVAL '1 day'
    d) "昨天" → greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_timestamp < CURRENT_DATE
-   e) "今天和昨天"对比 → 用 UNION ALL 分别查询 CURRENT_DATE 当天和 CURRENT_DATE - INTERVAL '1 day' 范围的数据
+   e) "今天和昨天"对比 → **禁止使用 UNION / UNION ALL / 多个 SELECT 用分号分隔**（GreptimeDB 不支持）。改写为：在同一条 SELECT 里用 SUM(CASE WHEN ...) 并行计算两列，例如 SUM(CASE WHEN greptime_timestamp >= CURRENT_DATE THEN greptime_value END) AS today_count, SUM(CASE WHEN greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_timestamp < CURRENT_DATE THEN greptime_value END) AS yesterday_count；从全部结果用一条 SELECT 输出
    f) 只有用户明确指定了绝对日期（如"2026-06-01到2026-06-02"）时，才使用硬编码日期字符串
 
 """
@@ -651,7 +651,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     if "greptimedb" in db_env.dialect.lower():
         dialect_rules = """5、GreptimeDB 底层使用 DataFusion 查询引擎，以下 PostgreSQL 语法不兼容，必须避免：
    a) 没有 DATE() 函数，日期过滤用字符串比较或 NOW()/CURRENT_DATE 函数：greptime_timestamp >= '2026-06-01 00:00:00' 或 greptime_timestamp >= NOW() - INTERVAL '7 days'；需要按天聚合时用 date_trunc('day', 列) 替代 DATE(列)
-   b) SELECT DISTINCT 时，ORDER BY 的所有列必须出现在 SELECT 列表中
+   b) SELECT DISTINCT 时，ORDER BY 的所有列必须出现在 SELECT 列表中，否则 DataFusion 拒绝规划；常见错误示例：SELECT DISTINCT a.node_id FROM t1 a JOIN t2 b ... ORDER BY a.greptime_value DESC, b.greptime_value DESC → 报错 "must appear in select list"。修正方法：要么把 ORDER BY 的列加进 SELECT，要么把 ORDER BY 改为底层聚合（GROUP BY + ORDER BY SUM(...) / MAX(...)）而非 DISTINCT 后排序
    c) 时间戳之间不能做乘除运算（timestamp/timestamp 或 timestamp*n 等不支持）
    d) 多表 JOIN 或子查询中，列引用务必带表别名（如 t.node_id），避免仅写 node_id
    e) 时间戳值写成完整的 ISO 字符串 '2026-06-01 00:00:00'，不要简写为 '2026-06-01'
@@ -662,6 +662,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
       - 不支持 variance() → 用 var_samp() 或 var_pop()
       - 不支持 percentile_disc() → 用 approx_percentile_cont() 近似替代
    i) 不支持 MERGE / UPDATE / DELETE 等 DML 语句，只允许 SELECT 查询
+   j) 禁止使用 UNION / UNION ALL，也禁止用分号分隔多个 SELECT 语句（GreptimeDB 不支持），多时段对比改写为 SUM(CASE WHEN 条件 THEN 值 END) 同一查询内并列两列
 
 """
 
