@@ -663,6 +663,10 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
       - 不支持 percentile_disc() → 用 approx_percentile_cont() 近似替代
    i) 不支持 MERGE / UPDATE / DELETE 等 DML 语句，只允许 SELECT 查询
    j) 禁止使用 UNION / UNION ALL，也禁止用分号分隔多个 SELECT 语句（GreptimeDB 不支持），多时段对比改写为 SUM(CASE WHEN 条件 THEN 值 END) 同一查询内并列两列
+   k) 增量/趋势/变化类问题：当用户问题包含"增量"、"变化"、"趋势"、"环比"、"增长"、"恶化"等词时，SQL **必须**使用 LAG() 窗口函数或差分计算变化量，禁止只输出原始累计值。典型写法：GREPTIME_VALUE - LAG(GREPTIME_VALUE) OVER (PARTITION BY 维度列 ORDER BY greptime_timestamp)；变化率：(GREPTIME_VALUE - LAG(...)) / NULLIF(LAG(...), 0)。累计值指标（表名含 _total/_count_total）需特别警惕：直接 SUM/AVG 是常见错误
+   l) 时间粒度聚合：当用户问题包含"每小时"、"每分钟"、"按小时汇总"、"按天汇总"等时间粒度词时，SQL **必须**使用 DATE_TRUNC 显式指定时间桶："每小时" → date_trunc('hour', greptime_timestamp)；"每分钟" → date_trunc('minute', greptime_timestamp)；"按天" → date_trunc('day', greptime_timestamp)。GreptimeDB 不支持 DATE()，DATE_TRUNC 是唯一合法的时间聚合方式
+   m) 多指标联合查询：当用户问题包含"结合"、"对比"、"同时满足"、"比值"、"两边都"等词时，SQL **必须**从多个相关表 JOIN 查询，禁止只查一张表就声称"结合了两个指标"。Cockroach 监控表常成对出现：xxx_count（采样次数）+ xxx_sum（采样总和），"平均耗时/平均延迟"必须 SUM(_sum) / SUM(_count) JOIN 两张表，仅 AVG(_count) 是常见错误
+   n) 分组聚合：当用户问题包含"每个X"、"按X分组"、"各类别"、"各节点"、"每个实例"等词时，SQL **必须**使用 GROUP BY 维度列。仅有 SUM/AVG/MAX 而无 GROUP BY 是常见错误，会导致返回单一聚合值而非按维度拆分的多行结果
 
 """
 

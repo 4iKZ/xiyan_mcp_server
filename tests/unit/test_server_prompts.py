@@ -82,6 +82,40 @@ class TestDialectRules:
         assert "只允许" in self.rules, \
             "应说明只允许单个 SQL 语句"
 
+    def test_rules_contain_increment_pattern(self):
+        """改动 5 (本次)：规则 k) 应覆盖增量/趋势/变化语义"""
+        assert "LAG(" in self.rules, \
+            "规则 k 应包含 LAG 窗口函数示例"
+        assert "增量" in self.rules or "变化" in self.rules, \
+            "规则 k 应针对增量/变化类 NL"
+        assert "LAG(GREPTIME_VALUE)" in self.rules, \
+            "规则 k 应给出 LAG 窗口函数的具体写法"
+
+    def test_rules_contain_time_bucket_pattern(self):
+        """改动 6 (本次)：规则 l) 应覆盖时间粒度聚合"""
+        assert "DATE_TRUNC" in self.rules, \
+            "规则 l 应包含 DATE_TRUNC"
+        assert "每小时" in self.rules, \
+            "规则 l 应覆盖每小时聚合场景"
+        assert "date_trunc('hour'" in self.rules.lower(), \
+            "规则 l 应给出 'hour' 粒度具体语法"
+
+    def test_rules_contain_multi_table_join_hint(self):
+        """改动 7 (本次)：规则 m) 应覆盖多指标联合查询 + _count/_sum 配对"""
+        assert "结合" in self.rules or "对比" in self.rules, \
+            "规则 m 应识别结合/对比类 NL"
+        assert "JOIN" in self.rules, \
+            "规则 m 应提示使用 JOIN"
+        assert "_count" in self.rules and "_sum" in self.rules, \
+            "规则 m 应提及配对表 _count/_sum 模式"
+
+    def test_rules_contain_group_by_hint(self):
+        """改动 8 (本次)：规则 n) 应覆盖分组聚合"""
+        assert "GROUP BY" in self.rules, \
+            "规则 n 应包含 GROUP BY"
+        assert "每个" in self.rules or "按" in self.rules, \
+            "规则 n 应识别每个/按 分组类 NL"
+
 
 # ── function_not_found 修复提示验证 ────────────────────────────────
 
