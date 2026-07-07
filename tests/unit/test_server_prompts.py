@@ -261,6 +261,93 @@ class TestRetryStrategyCoverage:
         assert m is not None, "syntax_error 应使用 prev 基线"
 
 
+# ── 本次 prompt 优化方案验证 ───────────────────────────────────────
+
+class TestPromptOptimizationChanges:
+    """验证 prompt 优化方案中各项改动"""
+
+    @classmethod
+    def setup_class(cls):
+        cls.source = _read_server_source()
+        m = re.search(r'dialect_rules = """(.*?)"""', cls.source, re.DOTALL)
+        cls.rules = m.group(1) if m else ""
+
+    def test_intersect_except_prohibited(self):
+        """Task 9: 规则 5.10 应禁止 INTERSECT / EXCEPT"""
+        assert "INTERSECT" in self.rules, "应禁止 INTERSECT"
+        assert "EXCEPT" in self.rules, "应禁止 EXCEPT"
+
+    def test_table_name_case_sensitivity(self):
+        """Task 8: 规则 1 应包含表名大小写提示"""
+        assert "区分大小写" in self.source, "规则 1 应包含表名区分大小写提示"
+        assert "schedules_backup" in self.source, "应给出大小写示例"
+
+    def test_distinct_orderby_in_retry_strategy(self):
+        """Task 2: RETRY_STRATEGY 应包含 distinct_orderby_error"""
+        assert '"distinct_orderby_error"' in self.source, \
+            "RETRY_STRATEGY 应包含 distinct_orderby_error 条目"
+
+    def test_distinct_orderby_prompt_variant_exists(self):
+        """Task 2: PROMPT_VARIANTS 应包含 distinct_orderby_error 变体"""
+        m = re.search(
+            r'"distinct_orderby_error":\s*\((.+?)\)\s*,',
+            self.source, re.DOTALL,
+        )
+        prompt = m.group(1) if m else ""
+        assert "GROUP BY" in prompt and "聚合函数" in prompt, \
+            "distinct_orderby_error prompt 应包含 GROUP BY 替代方案"
+
+    def test_sql_fix_signature_has_dialect_rules(self):
+        """Task 3: sql_fix 函数签名应包含 dialect_rules 参数"""
+        assert "dialect_rules: str" in self.source, \
+            "sql_fix 签名应包含 dialect_rules 参数"
+        assert "time_rules: str" in self.source, \
+            "sql_fix 签名应包含 time_rules 参数"
+
+    def test_sql_fix_injects_dialect_rules(self):
+        """Task 3: sql_fix 应在 system_prompt 中注入 dialect_rules"""
+        assert "if dialect_rules:" in self.source, \
+            "sql_fix 应检查并注入 dialect_rules"
+
+    def test_table_not_found_injects_candidates(self):
+        """Task 4: table_not_found 应注入候选表名列表"""
+        assert "difflib" in self.source, "应导入 difflib"
+        assert "_FULL_TABLE_LIST" in self.source
+        assert "get_close_matches" in self.source
+
+    def test_column_not_found_injects_valid_fields(self):
+        """Task 5: column_not_found 应注入 valid fields 列表"""
+        assert "valid_match" in self.source, "应存在 valid_match 提取逻辑"
+        assert "实际存在的字段" in self.source, "应注入字段列表提示"
+
+    def test_lag_contradiction_fixed(self):
+        """Task 6: 规则 5.11 应优先自连接而非 LAG()"""
+        assert "自连接" in self.rules, "规则 5.11 应优先自连接差分"
+        assert "LAG(" in self.rules, "仍保留 LAG( 字符串"
+        assert "LAG(GREPTIME_VALUE)" in self.rules, "仍保留 LAG(GREPTIME_VALUE) 字符串"
+
+    def test_function_not_found_has_lag_hint(self):
+        """Task 6: function_not_found prompt 应包含 LAG 提示"""
+        # 注意：不能用 \)\s*, 泛匹配，因为 prompt 内部有 (ORDER BY 列), 导致提前截断
+        m = re.search(
+            r'"function_not_found":\s*\((.*?)\n\s*\),',
+            self.source, re.DOTALL,
+        )
+        prompt = m.group(1) if m else ""
+        assert "LAG" in prompt, \
+            "function_not_found prompt 应包含 LAG 不支持提示"
+
+    def test_join_error_has_distinct_hint(self):
+        """Task 7: join_error prompt 应包含 DISTINCT 提示"""
+        m = re.search(
+            r'"join_error":\s*\((.+?)\)\s*,',
+            self.source, re.DOTALL,
+        )
+        prompt = m.group(1) if m else ""
+        assert "DISTINCT" in prompt, \
+            "join_error prompt 应包含 SELECT DISTINCT 提示"
+
+
 # ── 集成验证：所有改动文件语法有效 ─────────────────────────────────
 
 class TestSyntaxValid:

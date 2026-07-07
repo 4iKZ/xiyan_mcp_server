@@ -94,6 +94,27 @@ class TestClassifyError:
     def test_other(self):
         assert classify_error("some random error message") == "other"
 
+    # ── 本次优化新增测试 ──
+
+    def test_no_field_named_to_column_not_found(self):
+        """DataFusion 'No field named' 应归类为 column_not_found"""
+        assert classify_error("No field named 'greptime_value'") == "column_not_found"
+        assert classify_error("field named 'foo' not found") == "column_not_found"
+
+    def test_distinct_orderby_classification(self):
+        """SELECT DISTINCT + ORDER BY 不在 SELECT 列表 → distinct_orderby_error"""
+        assert classify_error("column must appear in select list for select distinct") == "distinct_orderby_error"
+        assert classify_error("for select distinct order by") == "distinct_orderby_error"
+
+    def test_sql_truncation_prevents_misclassification(self):
+        """错误消息中 [SQL: ...] 部分的 SQL 关键词不应影响分类"""
+        # SQL 中的 "my_table" 含 "table"，不应误分类为 table_not_found
+        err = "syntax error at position 42. [SQL: SELECT * FROM my_table WHERE x = 1]"
+        assert classify_error(err) == "syntax_error"
+        # planner 错误中的 SQL 含 "table"，不应误分类
+        err = "failed to plan query. [SQL: SELECT * FROM my_table]"
+        assert classify_error(err) == "planner_error"
+
 
 # ── extract_tables_from_sql ────────────────────────────────────
 

@@ -142,6 +142,110 @@ class TestNormalizeVerdict:
         assert v["category"] == "other"
 
 
+# ── _normalize_verdict: conclusion unwrap ────────────────────────
+
+class TestNormalizeVerdictConclusionUnwrap:
+    """兼容模型把 verdict 包在 conclusion 对象里（CoT 输出习惯）
+
+    现象：模型输出 {"analysis": {...}, "conclusion": {"correct": true, ...}}
+    修复：_normalize_verdict 顶层缺 correct 时 unwrap 到 conclusion
+    """
+
+    def _bare_instance(self):
+        return JudgeModel.__new__(JudgeModel)
+
+    def test_unwrap_conclusion_with_correct_true(self):
+        m = self._bare_instance()
+        v = m._normalize_verdict({
+            "analysis": {"SQL 语义": "...", "意图匹配": "..."},
+            "conclusion": {
+                "correct": True, "category": "correct", "reason": "SQL 正确",
+            },
+        })
+        assert v["correct"] is True
+        assert v["category"] == "correct"
+        assert v["reason"] == "SQL 正确"
+
+    def test_unwrap_conclusion_with_infra_category(self):
+        """conclusion 包 infra_* 类别，unwrap 后与 correct=True 共存"""
+        m = self._bare_instance()
+        v = m._normalize_verdict({
+            "analysis": {"...": "..."},
+            "conclusion": {
+                "correct": True,
+                "category": "infrastructure_timeout",
+                "reason": "SQL 文本正确但 exec 超时",
+            },
+        })
+        assert v["correct"] is True
+        assert v["category"] == "infrastructure_timeout"
+
+    def test_unwrap_conclusion_with_correct_false(self):
+        m = self._bare_instance()
+        v = m._normalize_verdict({
+            "analysis": {"...": "..."},
+            "conclusion": {
+                "correct": False, "category": "schema_wrong", "reason": "表选错",
+            },
+        })
+        assert v["correct"] is False
+        assert v["category"] == "schema_wrong"
+
+    def test_top_level_correct_takes_precedence(self):
+        """顶层已有 correct 时不被 conclusion 覆盖（即使 conclusion 也有 verdict）"""
+        m = self._bare_instance()
+        v = m._normalize_verdict({
+            "correct": True,
+            "category": "correct",
+            "conclusion": {  # 应被忽略
+                "correct": False,
+                "category": "syntax",
+            },
+        })
+        assert v["correct"] is True
+        assert v["category"] == "correct"
+
+    def test_conclusion_not_dict_falls_through_to_error(self):
+        """conclusion 不是 dict（字符串/列表等）时不 unwrap，走旧逻辑抛错"""
+        m = self._bare_instance()
+        with pytest.raises(Exception) as exc_info:
+            m._normalize_verdict({
+                "analysis": {"...": "..."},
+                "conclusion": "some string",  # 非 dict
+            })
+        assert "不是 bool" in str(exc_info.value)
+
+    def test_no_conclusion_no_correct_still_raises(self):
+        """既无 correct 也无 conclusion 时仍按旧逻辑抛错"""
+        m = self._bare_instance()
+        with pytest.raises(Exception) as exc_info:
+            m._normalize_verdict({"analysis": {"SQL 语义": "..."}})
+        assert "不是 bool" in str(exc_info.value)
+
+    def test_conclusion_missing_correct_still_raises(self):
+        """conclusion 存在但里面也没 correct → 抛错（不静默归 other）"""
+        m = self._bare_instance()
+        with pytest.raises(Exception) as exc_info:
+            m._normalize_verdict({
+                "analysis": {"...": "..."},
+                "conclusion": {"category": "correct", "reason": "..."},  # 缺 correct
+            })
+        assert "不是 bool" in str(exc_info.value)
+
+    def test_non_dict_parsed_raises(self):
+        """parsed 不是 dict 时直接抛错（防御）"""
+        m = self._bare_instance()
+        with pytest.raises(Exception) as exc_info:
+            m._normalize_verdict("not a dict")
+        assert "不是 dict" in str(exc_info.value)
+
+    def test_parsed_list_raises(self):
+        m = self._bare_instance()
+        with pytest.raises(Exception) as exc_info:
+            m._normalize_verdict([{"correct": True, "category": "correct"}])
+        assert "不是 dict" in str(exc_info.value)
+
+
 # ── _build_infra_instruct ────────────────────────────────────────
 
 class TestBuildInfraInstruct:
