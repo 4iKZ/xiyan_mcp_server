@@ -370,6 +370,23 @@ async def judge_one(
                         f"judge 限流重试耗尽: {nl[:40]}... err={err_str[:120]}"
                     )
                     break
+                # 临时性网络错误（超时/断连/服务端 5xx）也退避重试
+                elif ("APITimeoutError" in err_str
+                      or "APIConnectionError" in err_str
+                      or "InternalServerError" in err_str):
+                    last_err = err_str
+                    if attempt < max_retries - 1:
+                        wait = 3 * (2 ** attempt)  # 3s → 6s → 12s
+                        logger.warning(
+                            f"judge 临时错误 (attempt {attempt+1}/{max_retries})，"
+                            f"{wait}s 后重试: {nl[:40]}... err={err_str[:80]}"
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    logger.error(
+                        f"judge 临时错误重试耗尽: {nl[:40]}... err={err_str[:120]}"
+                    )
+                    break
                 # 其他 JudgeError（JSON 解析等）直接停
                 last_err = f"JudgeError: {e}"
                 logger.warning(
