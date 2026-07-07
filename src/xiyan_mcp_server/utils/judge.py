@@ -326,6 +326,19 @@ planner_error / permission_denied）时，**只评估 SQL 文本逻辑正确性*
 
     def _normalize_verdict(self, parsed: Dict) -> Dict:
         """规范化 verdict 字段，确保 correct/category/reason 都存在且类型对"""
+        if not isinstance(parsed, dict):
+            raise JudgeError(f"verdict 不是 dict: {type(parsed).__name__}; full={parsed}")
+
+        # 兼容模型把 verdict 包在 conclusion 对象里：
+        # {"analysis": {...}, "conclusion": {"correct": true, "category": "...", "reason": "..."}}
+        # 只有顶层缺 correct 时才 unwrap；顶层已有 correct 时优先用顶层。
+        if (
+            "correct" not in parsed
+            and "conclusion" in parsed
+            and isinstance(parsed["conclusion"], dict)
+        ):
+            parsed = parsed["conclusion"]
+
         correct = parsed.get("correct")
         if not isinstance(correct, bool):
             # 容错：字符串 "true"/"false"

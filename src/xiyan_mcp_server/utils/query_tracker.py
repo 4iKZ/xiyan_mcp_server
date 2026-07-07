@@ -135,7 +135,10 @@ def classify_error(error_message: str) -> str:
     """根据数据库错误信息自动分类错误类型"""
     if not error_message:
         return "unknown"
-    msg = error_message.lower()
+    msg_full = error_message.lower()
+    # 截断 [SQL: ...] 部分，避免 SQL 中的关键词（如 JOIN、table）导致误分类
+    sql_marker = msg_full.find('[sql:')
+    msg = msg_full[:sql_marker].strip() if sql_marker > 0 else msg_full
 
     # ── 基础设施错误（无法通过 prompt 修复，直接跳过 retry）──
     if any(k in msg for k in ['timeout', '超时', 'timed out']):
@@ -154,6 +157,9 @@ def classify_error(error_message: str) -> str:
     if any(k in msg for k in ['feature not supported', 'statement is not supported',
                                'sql statement is not supported', 'merge']):
         return "unsupported_statement"
+    # DISTINCT + ORDER BY 列不在 SELECT 列表（DataFusion 高频错误，需专用修复路径）
+    if 'must appear in select list' in msg or 'for select distinct' in msg:
+        return "distinct_orderby_error"
     if any(k in msg for k in ['failed to coerce', 'cannot coerce', 'coerce arguments']):
         return "type_error"
     if 'invalid function' in msg:
@@ -165,8 +171,9 @@ def classify_error(error_message: str) -> str:
     if any(k in msg for k in ['function', '函数']):
         return "function_not_found"
 
-    # ── 列相关 ──
-    if any(k in msg for k in ['column', '列', 'unknown column']):
+    # ── 列相关（含 DataFusion 的 'No field named' 模式）──
+    if any(k in msg for k in ['column', '列', 'unknown column',
+                               'no field named', 'field named']):
         return "column_not_found"
 
     # ── 表相关 ──
