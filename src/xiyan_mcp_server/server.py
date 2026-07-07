@@ -662,12 +662,12 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     # 注入当前时间，避免模型使用训练数据中的过期日期
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     time_rules = f"""4、当前实际时间是 {now_str}。当用户问题包含相对时间表达（如"最近X小时/天/周"、"今天"、"昨天"、"今天和昨天"等）时，**必须**使用动态时间函数，**禁止**硬编码具体日期：
-   a) "最近N小时" → greptime_timestamp >= NOW() - INTERVAL 'N hours'
-   b) "最近N天" → greptime_timestamp >= NOW() - INTERVAL 'N days'
-   c) "今天" → greptime_timestamp >= CURRENT_DATE AND greptime_timestamp < CURRENT_DATE + INTERVAL '1 day'
-   d) "昨天" → greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_timestamp < CURRENT_DATE
-   e) "今天和昨天"对比 → **禁止使用 UNION / UNION ALL / 多个 SELECT 用分号分隔**（GreptimeDB 不支持）。改写为：在同一条 SELECT 里用 SUM(CASE WHEN ...) 并行计算两列，例如 SUM(CASE WHEN greptime_timestamp >= CURRENT_DATE THEN greptime_value END) AS today_count, SUM(CASE WHEN greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_timestamp < CURRENT_DATE THEN greptime_value END) AS yesterday_count；从全部结果用一条 SELECT 输出
-   f) 只有用户明确指定了绝对日期（如"2026-06-01到2026-06-02"）时，才使用硬编码日期字符串
+   4.1) "最近N小时" → greptime_timestamp >= NOW() - INTERVAL 'N hours'
+   4.2) "最近N天" → greptime_timestamp >= NOW() - INTERVAL 'N days'
+   4.3) "今天" → greptime_timestamp >= CURRENT_DATE AND greptime_timestamp < CURRENT_DATE + INTERVAL '1 day'
+   4.4) "昨天" → greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_timestamp < CURRENT_DATE
+   4.5) "今天和昨天"对比 → **禁止使用 UNION / UNION ALL / 多个 SELECT 用分号分隔**（GreptimeDB 不支持）。改写为：在同一条 SELECT 里用 SUM(CASE WHEN ...) 并行计算两列，例如 SUM(CASE WHEN greptime_timestamp >= CURRENT_DATE THEN greptime_value END) AS today_count, SUM(CASE WHEN greptime_timestamp >= CURRENT_DATE - INTERVAL '1 day' AND greptime_timestamp < CURRENT_DATE THEN greptime_value END) AS yesterday_count；从全部结果用一条 SELECT 输出
+   4.6) 只有用户明确指定了绝对日期（如"2026-06-01到2026-06-02"）时，才使用硬编码日期字符串
 
 """
 
@@ -675,36 +675,33 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     dialect_rules = ""
     if "greptimedb" in db_env.dialect.lower():
         dialect_rules = """5、GreptimeDB 底层使用 DataFusion 查询引擎，以下 PostgreSQL 语法不兼容，必须避免：
-   a) 没有 DATE() 函数，日期过滤用字符串比较或 NOW()/CURRENT_DATE 函数：greptime_timestamp >= '2026-06-01 00:00:00' 或 greptime_timestamp >= NOW() - INTERVAL '7 days'；需要按天聚合时用 date_trunc('day', 列) 替代 DATE(列)
-   b) SELECT DISTINCT 时，ORDER BY 的所有列必须出现在 SELECT 列表中，否则 DataFusion 拒绝规划；常见错误示例：SELECT DISTINCT a.node_id FROM t1 a JOIN t2 b ... ORDER BY a.greptime_value DESC, b.greptime_value DESC → 报错 "must appear in select list"。修正方法：要么把 ORDER BY 的列加进 SELECT，要么把 ORDER BY 改为底层聚合（GROUP BY + ORDER BY SUM(...) / MAX(...)）而非 DISTINCT 后排序
-   c) 时间戳之间不能做乘除运算（timestamp/timestamp 或 timestamp*n 等不支持）
-   d) 多表 JOIN 或子查询中，列引用务必带表别名（如 t.node_id），避免仅写 node_id
-   e) 时间戳值写成完整的 ISO 字符串 '2026-06-01 00:00:00'，不要简写为 '2026-06-01'
-   f) 子查询中避免 SELECT *（DataFusion 可能无法正确展开），尽量显式列出所需列名
-   g) date_part 等函数只能用于真正的时间戳列，不能对聚合后的数值列调用
-   h) 部分聚合函数不支持下列 PostgreSQL 写法，必须使用对应的 DataFusion 版本：
+   5.1) 没有 DATE() 函数，日期过滤用字符串比较或 NOW()/CURRENT_DATE 函数：greptime_timestamp >= '2026-06-01 00:00:00' 或 greptime_timestamp >= NOW() - INTERVAL '7 days'；需要按天聚合时用 date_trunc('day', 列) 替代 DATE(列)
+   5.2) SELECT DISTINCT 时，ORDER BY 的所有列必须出现在 SELECT 列表中，否则 DataFusion 拒绝规划；常见错误示例：SELECT DISTINCT a.node_id FROM t1 a JOIN t2 b ... ORDER BY a.greptime_value DESC, b.greptime_value DESC → 报错 "must appear in select list"。修正方法：要么把 ORDER BY 的列加进 SELECT，要么把 ORDER BY 改为底层聚合（GROUP BY + ORDER BY SUM(...) / MAX(...)）而非 DISTINCT 后排序
+   5.3) 时间戳之间不能做乘除运算（timestamp/timestamp 或 timestamp*n 等不支持）
+   5.4) 多表 JOIN 或子查询中，列引用务必带表别名（如 t.node_id），避免仅写 node_id
+   5.5) 时间戳值写成完整的 ISO 字符串 '2026-06-01 00:00:00'，不要简写为 '2026-06-01'
+   5.6) 子查询中避免 SELECT *（DataFusion 可能无法正确展开），尽量显式列出所需列名
+   5.7) date_part 等函数只能用于真正的时间戳列，不能对聚合后的数值列调用
+   5.8) 部分聚合函数不支持下列 PostgreSQL 写法，必须使用对应的 DataFusion 版本：
       - 不支持 approx_percentile() → 用 approx_percentile_cont(分位数) WITHIN GROUP (ORDER BY 列)，格式为 approx_percentile_cont(0.95) WITHIN GROUP (ORDER BY greptime_value)，每个分位数单独计算一列；也支持 median(列) 作为 P50 简写
       - 不支持 variance() → 用 var_samp() 或 var_pop()
       - 不支持 percentile_disc() → 用 approx_percentile_cont() 近似替代
-   i) 不支持 MERGE / UPDATE / DELETE 等 DML 语句，只允许 SELECT 查询
-   j) 禁止使用 UNION / UNION ALL，也禁止用分号分隔多个 SELECT 语句（GreptimeDB 不支持），多时段对比改写为 SUM(CASE WHEN 条件 THEN 值 END) 同一查询内并列两列
-   k) 增量/趋势/变化类问题：当用户问题包含"增量"、"变化"、"趋势"、"环比"、"增长"、"恶化"等词时，SQL **必须**使用 LAG() 窗口函数或差分计算变化量，禁止只输出原始累计值。典型写法：GREPTIME_VALUE - LAG(GREPTIME_VALUE) OVER (PARTITION BY 维度列 ORDER BY greptime_timestamp)；变化率：(GREPTIME_VALUE - LAG(...)) / NULLIF(LAG(...), 0)。累计值指标（表名含 _total/_count_total）需特别警惕：直接 SUM/AVG 是常见错误
-   l) 时间粒度聚合：当用户问题包含"每小时"、"每分钟"、"按小时汇总"、"按天汇总"等时间粒度词时，SQL **必须**使用 DATE_TRUNC 显式指定时间桶："每小时" → date_trunc('hour', greptime_timestamp)；"每分钟" → date_trunc('minute', greptime_timestamp)；"按天" → date_trunc('day', greptime_timestamp)。GreptimeDB 不支持 DATE()，DATE_TRUNC 是唯一合法的时间聚合方式
-   m) 多指标联合查询：当用户问题包含"结合"、"对比"、"同时满足"、"比值"、"两边都"等词时，SQL **必须**从多个相关表 JOIN 查询，禁止只查一张表就声称"结合了两个指标"。Cockroach 监控表常成对出现：xxx_count（采样次数）+ xxx_sum（采样总和），"平均耗时/平均延迟"必须 SUM(_sum) / SUM(_count) JOIN 两张表，仅 AVG(_count) 是常见错误
-   n) 分组聚合：当用户问题包含"每个X"、"按X分组"、"各类别"、"各节点"、"每个实例"等词时，SQL **必须**使用 GROUP BY 维度列。仅有 SUM/AVG/MAX 而无 GROUP BY 是常见错误，会导致返回单一聚合值而非按维度拆分的多行结果
+   5.9) 不支持 MERGE / UPDATE / DELETE 等 DML 语句，只允许 SELECT 查询
+   5.10) 禁止使用 UNION / UNION ALL，也禁止用分号分隔多个 SELECT 语句（GreptimeDB 不支持），多时段对比改写为 SUM(CASE WHEN 条件 THEN 值 END) 同一查询内并列两列
+   5.11) 增量/趋势/变化类问题：当用户问题包含"增量"、"变化"、"趋势"、"环比"、"增长"、"恶化"等词时，SQL **必须**使用 LAG() 窗口函数或差分计算变化量，禁止只输出原始累计值。典型写法：GREPTIME_VALUE - LAG(GREPTIME_VALUE) OVER (PARTITION BY 维度列 ORDER BY greptime_timestamp)；变化率：(GREPTIME_VALUE - LAG(...)) / NULLIF(LAG(...), 0)。累计值指标（表名含 _total/_count_total）需特别警惕：直接 SUM/AVG 是常见错误
+   5.12) 时间粒度聚合：当用户问题包含"每小时"、"每分钟"、"按小时汇总"、"按天汇总"等时间粒度词时，SQL **必须**使用 DATE_TRUNC 显式指定时间桶："每小时" → date_trunc('hour', greptime_timestamp)；"每分钟" → date_trunc('minute', greptime_timestamp)；"按天" → date_trunc('day', greptime_timestamp)。GreptimeDB 不支持 DATE()，DATE_TRUNC 是唯一合法的时间聚合方式
+   5.13) 多指标联合查询：当用户问题包含"结合"、"对比"、"同时满足"、"比值"、"两边都"等词时，SQL **必须**从多个相关表 JOIN 查询，禁止只查一张表就声称"结合了两个指标"。Cockroach 监控表常成对出现：xxx_count（采样次数）+ xxx_sum（采样总和），"平均耗时/平均延迟"必须 SUM(_sum) / SUM(_count) JOIN 两张表，仅 AVG(_count) 是常见错误
+   5.14) 分组聚合：当用户问题包含"每个X"、"按X分组"、"各类别"、"各节点"、"每个实例"等词时，SQL **必须**使用 GROUP BY 维度列。仅有 SUM/AVG/MAX 而无 GROUP BY 是常见错误，会导致返回单一聚合值而非按维度拆分的多行结果
 
 """
 
-    prompt = f"""你现在是一名{db_env.dialect}数据分析专家，你的任务是根据参考的数据库schema和用户的问题，编写正确的SQL来回答用户的问题，生成的SQL用``sql 和```包围起来。
+    prompt = f"""你现在是一名{db_env.dialect}数据分析专家，你的任务是根据参考的数据库schema和用户的问题，编写正确的SQL来回答用户的问题，生成的SQL用```sql 和```包围起来。
 注意：
 1、表名已经包含了完整的 schema 前缀（如 sundb_metrics.table_name），请直接引用这些表名，**禁止**添加 'public.' 或其他任何额外的库名/Schema 前缀。
 2、只生成一个 SQL 语句。
 3、对于查询明细数据（不含 COUNT/SUM/AVG/GROUP BY 等聚合），请在 SQL 末尾加 LIMIT 500 限制返回行数。
 {time_rules}{dialect_rules}【数据库schema】
 {db_env.mschema_str}
-
-【问题】
-{query}
 """
     logger.debug(f"SQL generation prompt: {prompt}")
 
