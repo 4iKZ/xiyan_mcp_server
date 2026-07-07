@@ -53,6 +53,11 @@ class JudgeModel:
         "syntax",             # 语法层错误（SQL 跑不通）
         "other",              # 其它说不清楚的错误
         "system_failure",     # 被测系统未产出 SQL（脚本直接标记，不进 judge 模型）
+        # ── 基础设施类失败（SQL 文本正确但 exec 被基础设施挡住）──
+        "infrastructure_timeout",     # SQL 60s 超时，与 SQL 逻辑无关
+        "infrastructure_conn",        # connection refused / server closed
+        "infrastructure_planner",     # DataFusion failed to plan（规划器侧问题）
+        "infrastructure_permission",  # DB 权限拒绝
     ]
 
     # GreptimeDB/DataFusion 方言约束摘要（仅在方言匹配时注入 prompt）
@@ -115,7 +120,27 @@ class JudgeModel:
 - JOIN 了多余的表但不影响最终结果正确性 → 不算 schema_wrong
 - JOIN 条件缺失（笛卡尔积）→ 判 **syntax** 或 **other**
 
-## 错误类别（必须从以下 7 类中选一个）
+## 基础设施类失败判定规则
+当被测系统返回了 **基础设施类错误**（error_type 为 timeout / connection_error /
+planner_error / permission_denied）时，**只评估 SQL 文本逻辑正确性**，与 exec
+结果无关（不因 exec 失败而判错；也不因 exec 失败而放水）。
+
+判定步骤：
+1. **先看 SQL 文本**：语法正确？表/列名真实存在（参考上方 schema）？聚合/过滤/分组
+   逻辑与用户意图一致？
+2. **如果 SQL 文本本身有错**（引用不存在的表/列、聚合函数错、过滤条件错、语法错等），
+   → correct=False, category 用对应 SQL 语义错类（schema_wrong / column_wrong /
+   aggregation_wrong / filter_wrong / syntax / other）
+3. **如果 SQL 文本逻辑正确**，exec 失败是基础设施问题
+   → correct=True, category 用对应 infrastructure_*：
+   - timeout → infrastructure_timeout
+   - connection_error → infrastructure_conn
+   - planner_error → infrastructure_planner
+   - permission_denied → infrastructure_permission
+
+{infra_error_instruct}
+
+## 错误类别（必须从以下 11 类中选一个）
 1. **correct**：SQL 正确回答了问题
 2. **schema_wrong**：用错了表（FROM/JOIN 选错了主体表）
 3. **column_wrong**：表对，但列引用错误（引用了不存在的列或含义不对的列）
@@ -123,6 +148,10 @@ class JudgeModel:
 5. **filter_wrong**：WHERE 条件错误（漏限定、错限定、时间范围错）
 6. **syntax**：SQL 语法层错误（在目标方言下跑不通）
 7. **other**：其它
+8. **infrastructure_timeout**：SQL 文本正确但 60s 超时（与 SQL 无关）
+9. **infrastructure_conn**：SQL 文本正确但连接失败（server closed / connection refused）
+10. **infrastructure_planner**：SQL 文本正确但 DataFusion 规划器失败
+11. **infrastructure_permission**：SQL 文本正确但 DB 权限拒绝
 
 # 输出要求
 请先简要分析以下 5 个维度（每维度 1 句话），然后给出结论：
@@ -190,6 +219,25 @@ class JudgeModel:
             return self.retriever.build_sub_schema(table_names, skip_lazy_load=True)
         except Exception as e:
             raise JudgeError(f"judge 端 RAG 失败: {e}") from e
+
+    # 基础设施类 error_type：exec 失败与 SQL 文本逻辑无关，prompt 需给 judge 明确指令
+    INFRA_ERROR_TYPES = frozenset({"timeout", "connection_error", "planner_error", "permission_denied"})
+
+    @classmethod
+    def _build_infra_instruct(cls, exec_summary: Dict) -> str:
+        """根据 exec_summary 构造 prompt 中的基础设施类失败指令段。
+
+        抽出为独立方法便于测试：timeout / connection_error / planner_error /
+        permission_denied 四种 error_type 走特殊指令，其他保持空。
+        """
+        err_type = (exec_summary.get("error_type") or "").strip()
+        if err_type not in cls.INFRA_ERROR_TYPES:
+            return ""
+        return (
+            f"\n⚠️ 本次失败属于 **基础设施类错误**（error_type={err_type}）。"
+            "请**只评估 SQL 文本逻辑**（参见上方「基础设施类失败判定规则」），"
+            "不要因 exec 失败而判错，也不要无脑放水。\n"
+        )
 
     def _format_preview(self, preview, fields=None) -> str:
         """把 result_preview（list of list 或 字符串）格式化成短文本，可选带列头"""
@@ -299,7 +347,9 @@ class JudgeModel:
             category = "other"
 
         # 一致性兜底：correct=True 但 category 不是 correct → 信 correct=True
-        if correct and category != "correct":
+        # 例外：infrastructure_* 类别允许与 correct=True 共存
+        # （SQL 文本正确但 exec 被基础设施挡住，单独标记而不强制归为 correct）
+        if correct and category != "correct" and not category.startswith("infrastructure_"):
             logger.warning(
                 f"verdict 不一致: correct=True 但 category={category}，强制改为 correct"
             )
@@ -375,6 +425,10 @@ class JudgeModel:
             if exec_error_type:
                 exec_error_detail += f"（类型：{exec_error_type}）"
 
+        # 基础设施类失败检测：timeout / connection_error / planner_error / permission_denied
+        # 这些错误的 exec 失败与 SQL 文本逻辑无关，需要在 prompt 里给 judge 明确指令
+        infra_error_instruct = self._build_infra_instruct(exec_summary)
+
         # 3. 构 prompt
         prompt = self.PROMPT_TEMPLATE.format(
             nl_query=nl_query,
@@ -389,6 +443,7 @@ class JudgeModel:
             exec_error_detail=exec_error_detail,
             dialect=dialect_str,
             dialect_rules=dialect_rules,
+            infra_error_instruct=infra_error_instruct,
         )
 
         # 4. 调模型

@@ -231,6 +231,11 @@ CATEGORY_ORDER = [
     "syntax",
     "other",
     "system_failure",
+    # ── 基础设施类失败（SQL 文本正确但 exec 被基础设施挡住）──
+    "infrastructure_timeout",
+    "infrastructure_conn",
+    "infrastructure_planner",
+    "infrastructure_permission",
 ]
 
 
