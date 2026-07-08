@@ -45,14 +45,15 @@ class JudgeModel:
     # 错误类别枚举（写在 prompt 里给模型当 closed-set）
     # 注意：system_failure 不由模型产出，是脚本对"被测系统未生成 SQL"case 的直接标记
     CATEGORIES = [
-        "correct",            # SQL 正确回答了问题
-        "schema_wrong",       # 用错了表（FROM 子句里的表不对）
-        "column_wrong",       # 列用错（表对但列不对）
-        "aggregation_wrong",  # 聚合维度错（SUM/COUNT/AVG/GROUP BY 等）
-        "filter_wrong",       # WHERE 条件错（漏了/多了/错了限定条件）
-        "syntax",             # 语法层错误（SQL 跑不通）
-        "other",              # 其它说不清楚的错误
-        "system_failure",     # 被测系统未产出 SQL（脚本直接标记，不进 judge 模型）
+        "correct",                    # SQL 正确回答了问题
+        "incomplete_semantics",       # SQL 语义只回答了问题的一部分
+        "schema_wrong",               # 用错了表（FROM 子句里的表不对）
+        "column_wrong",               # 列用错（表对但列不对）
+        "aggregation_wrong",          # 聚合维度错（SUM/COUNT/AVG/GROUP BY 等）
+        "filter_wrong",               # WHERE 条件错（漏了/多了/错了限定条件）
+        "syntax",                     # 语法层错误（SQL 跑不通）
+        "other",                      # 其它说不清楚的错误
+        "system_failure",             # 被测系统未产出 SQL（脚本直接标记，不进 judge 模型）
         # ── 基础设施类失败（SQL 文本正确但 exec 被基础设施挡住）──
         "infrastructure_timeout",     # SQL 60s 超时，与 SQL 逻辑无关
         "infrastructure_conn",        # connection refused / server closed
@@ -96,29 +97,54 @@ class JudgeModel:
 请仔细分析这条 SQL 是否正确回答了用户问题，并按以下规则输出：
 
 ## 时间条件判定规则
-- **宽容**：SQL 使用了动态时间函数（NOW()/CURRENT_DATE/INTERVAL），但因模型训练数据截止导致年份基准偏移 → 不视为错误
+- **宽容**：SQL 使用了动态时间函数（NOW()/CURRENT_DATE/CURRENT_TIMESTAMP/INTERVAL 等），但因模型训练数据截止导致年份基准偏移 → 不视为错误
 - **判错**：用户问题包含相对时间表达（如"最近 N 天/小时""今天""昨天"），但 SQL 全部使用硬编码日期、未使用任何动态时间函数 → 判为 filter_wrong
 - **合理**：用户明确指定了绝对日期（如"2023 年 1 月的数据"），硬编码日期是正确做法 → 不判错
+- **混合时间**：同一问题同时包含相对时间和绝对日期时，相对时间部分必须动态函数，绝对日期部分可以硬编码
+
+## 错误类别（必须从以下 12 类中选一个）
+1. **correct**：SQL 正确回答了问题
+2. **incomplete_semantics**：SQL 语义只回答了用户问题的一部分，缺少必要的明细、子查询或关联结果
+3. **schema_wrong**：用错了表（FROM/JOIN 选错了主体表）
+4. **column_wrong**：表对，但列引用错误（引用了不存在的列或含义不对的列）
+5. **aggregation_wrong**：聚合函数/GROUP BY/HAVING/聚合层次错误
+6. **filter_wrong**：WHERE 条件错误（漏限定、错限定、时间范围错）
+7. **syntax**：SQL 语法层错误（在目标方言下跑不通）
+8. **other**：其它
+9. **infrastructure_timeout**：SQL 文本正确但 60s 超时（与 SQL 无关）
+10. **infrastructure_conn**：SQL 文本正确但连接失败（server closed / connection refused）
+11. **infrastructure_planner**：SQL 文本正确但 DataFusion 规划器失败
+12. **infrastructure_permission**：SQL 文本正确但 DB 权限拒绝
 
 ## 判定边界与反例
-- **correct**：SQL 语义与用户意图一致，返回数据能直接回答问题。边界：返回 0 行但 WHERE 条件合理（如该时间段确实无数据）仍判 correct
-- **schema_wrong**：FROM/JOIN 选错了主体表。反例：问"CPU 使用率"却查了 memory_usage 表。边界：表对但多加了不必要的 JOIN 不算 schema_wrong，看整体语义
-- **column_wrong**：表对但列引用错误。反例：问"节点数"但 SELECT 了 instance 而非 node_id。边界：表本身就选错了应归 schema_wrong
-- **aggregation_wrong**：聚合函数/GROUP BY/HAVING 错误。反例：问"总查询数"却用了 AVG 而非 SUM。边界：WHERE 过滤条件错了应归 filter_wrong
-- **filter_wrong**：WHERE 条件错误。反例：问"node_id=2 的数据"但缺少 WHERE node_id='2'。边界：聚合函数本身选错应归 aggregation_wrong
-- **syntax**：SQL 在目标方言下语法不合法。边界：语法正确但语义不对应归入上述类别
-- **other**：无法归入上述类别的情况
+- **correct**：SQL 语义与用户意图一致，返回数据能直接回答问题。包含规则：返回 0 行但 WHERE 条件合理（如该时间段确实无数据）仍判 correct；SQL 语义完整且无语法/表/列/聚合/过滤错误。
+- **incomplete_semantics**：SQL 只覆盖了问题的一部分语义。反例：用户问"平均值最高的 node_id 的所有数据"，SQL 只返回了该 node_id 的平均值，未返回其明细行。边界：聚合函数本身选错应归 aggregation_wrong；缺少 WHERE 条件应归 filter_wrong；SQL 能回答全部问题则不应归此类。
+- **schema_wrong**：FROM/JOIN 选错了主体表。反例：问"CPU 使用率"却查了 memory_usage 表。边界：表对但多加了不必要的 JOIN 不算 schema_wrong，看整体语义；JOIN 条件缺失导致笛卡尔积 → 归 schema_wrong（ON 条件写错/漏写导致 JOIN 语义错误时）。
+- **column_wrong**：表对但列引用错误。反例：问"节点数"但 SELECT 了 instance 而非 node_id。边界：表本身就选错了应归 schema_wrong。
+- **aggregation_wrong**：聚合函数/GROUP BY/HAVING/聚合层次错误。反例：
+  - 问"总查询数"却用了 AVG 而非 SUM。
+  - Counter 类累计指标（表名常含 _total/_count_total）求"增量"时误用 SUM，应使用差值（MAX-MIN）或 idelta。
+  - Histogram bucket 表（表名含 _bucket）问"最大桶值"时直接 MAX(greptime_value)，应返回采样数最大的 le 桶值。
+  - 应先按维度聚合（SUM）再取最大，却直接对原始值 MAX。
+  - 用户问题含"每个 X/按 X 分组/每小时"时缺失 GROUP BY。
+  - ORDER BY 列/方向错误、LIMIT 值错误导致 Top-N 语义改变。
+  边界：WHERE 过滤条件错了应归 filter_wrong；缺少明细数据应归 incomplete_semantics。
+- **filter_wrong**：WHERE 条件错误。反例：问"node_id=2 的数据"但缺少 WHERE node_id='2'。边界：聚合函数本身选错应归 aggregation_wrong。
+- **syntax**：SQL 在目标方言下语法不合法，导致无法执行。边界：语法正确但语义不对应归入上述类别；笛卡尔积仅因 JOIN 条件缺失而语义错误时，不判 syntax。
+- **other**：无法归入上述类别的情况。
+- **infrastructure_timeout / infrastructure_conn / infrastructure_planner / infrastructure_permission**：SQL 文本逻辑正确，执行失败仅因对应基础设施问题。若 SQL 文本本身有误，仍按 schema_wrong / column_wrong / aggregation_wrong / filter_wrong / incomplete_semantics / syntax / other 判。
 
 ## 特殊场景判定规则
 ### 0 行结果（返回行数为 0）
 - SQL 语义正确但数据库无匹配数据 → 判 **correct**（SQL 逻辑无误，数据问题不归责于 SQL）
 - WHERE 条件本身写错（过滤值错误、列名不对）导致漏掉所有行 → 判 **filter_wrong**
 - 引用了错误的表/列导致返回空 → 判对应的 **schema_wrong** / **column_wrong**
+- 聚合函数或 GROUP BY 错误导致返回空 → 判 **aggregation_wrong**
 
 ### 多列或多表 JOIN
 - SELECT 了多个列但用户只问了一个指标 → 不算错（多返回不扣分），除非多余列导致语义偏差
 - JOIN 了多余的表但不影响最终结果正确性 → 不算 schema_wrong
-- JOIN 条件缺失（笛卡尔积）→ 判 **syntax** 或 **other**
+- JOIN 条件缺失（笛卡尔积）→ 归 **schema_wrong**（ON 条件写错/漏写导致 JOIN 语义错误）或 **other**（语义层面无法归入上述类别时）；仅在 SQL 语法因此跑不通时判 **syntax**
 
 ## 基础设施类失败判定规则
 当被测系统返回了 **基础设施类错误**（error_type 为 timeout / connection_error /
@@ -130,7 +156,7 @@ planner_error / permission_denied）时，**只评估 SQL 文本逻辑正确性*
    逻辑与用户意图一致？
 2. **如果 SQL 文本本身有错**（引用不存在的表/列、聚合函数错、过滤条件错、语法错等），
    → correct=False, category 用对应 SQL 语义错类（schema_wrong / column_wrong /
-   aggregation_wrong / filter_wrong / syntax / other）
+   aggregation_wrong / filter_wrong / incomplete_semantics / syntax / other）
 3. **如果 SQL 文本逻辑正确**，exec 失败是基础设施问题
    → correct=True, category 用对应 infrastructure_*：
    - timeout → infrastructure_timeout
@@ -139,19 +165,6 @@ planner_error / permission_denied）时，**只评估 SQL 文本逻辑正确性*
    - permission_denied → infrastructure_permission
 
 {infra_error_instruct}
-
-## 错误类别（必须从以下 11 类中选一个）
-1. **correct**：SQL 正确回答了问题
-2. **schema_wrong**：用错了表（FROM/JOIN 选错了主体表）
-3. **column_wrong**：表对，但列引用错误（引用了不存在的列或含义不对的列）
-4. **aggregation_wrong**：聚合维度/GROUP BY/HAVING 错误
-5. **filter_wrong**：WHERE 条件错误（漏限定、错限定、时间范围错）
-6. **syntax**：SQL 语法层错误（在目标方言下跑不通）
-7. **other**：其它
-8. **infrastructure_timeout**：SQL 文本正确但 60s 超时（与 SQL 无关）
-9. **infrastructure_conn**：SQL 文本正确但连接失败（server closed / connection refused）
-10. **infrastructure_planner**：SQL 文本正确但 DataFusion 规划器失败
-11. **infrastructure_permission**：SQL 文本正确但 DB 权限拒绝
 
 # 输出要求
 请先简要分析以下 5 个维度（每维度 1 句话），然后给出结论：
@@ -361,12 +374,30 @@ planner_error / permission_denied）时，**只评估 SQL 文本逻辑正确性*
 
         # 一致性兜底：correct=True 但 category 不是 correct → 信 correct=True
         # 例外：infrastructure_* 类别允许与 correct=True 共存
-        # （SQL 文本正确但 exec 被基础设施挡住，单独标记而不强制归为 correct）
+        #        （SQL 文本正确但 exec 被基础设施挡住，单独标记而不强制归为 correct）
+        # 例外：incomplete_semantics 是语义错误，不能与 correct=True 共存
         if correct and category != "correct" and not category.startswith("infrastructure_"):
+            if category == "incomplete_semantics":
+                logger.warning(
+                    "verdict 不一致: correct=True 但 category=incomplete_semantics，强制 correct=False"
+                )
+                correct = False
+            else:
+                logger.warning(
+                    f"verdict 不一致: correct=True 但 category={category}，强制改为 correct"
+                )
+                category = "correct"
+
+        # 基础设施类别 + correct=False：尊重模型判断，不强制覆盖
+        # prompt 已明确指示 infrastructure_* 应与 correct=True 共存；
+        # 若模型返回 correct=False，可能模型发现了 SQL 文本本身也有误，
+        # 此时尊重模型的 correct=False，仅记录 warning 便于监控
+        if category.startswith("infrastructure_") and not correct:
             logger.warning(
-                f"verdict 不一致: correct=True 但 category={category}，强制改为 correct"
+                f"verdict 不一致: category={category} 但 correct=False，"
+                "未强制覆盖（尊重模型判断，可能 SQL 文本本身也有误）"
             )
-            category = "correct"
+
         # 反过来：correct=False 但 category=correct → 改成 other
         if not correct and category == "correct":
             logger.warning(

@@ -4,7 +4,7 @@
 1. CATEGORIES 增加 4 个 infrastructure_* 类别
 2. PROMPT_TEMPLATE 新增「基础设施类失败判定规则」段 + {infra_error_instruct} 占位符
 3. _normalize_verdict 允许 correct=True 与 infrastructure_* 共存
-4. _build_infra_infra_instruct() 根据 error_type 生成对应指令
+4. _build_infra_instruct() 根据 error_type 生成对应指令
 """
 
 import pytest
@@ -34,12 +34,17 @@ class TestCategoriesContainsInfra:
         ]:
             assert c in JudgeModel.CATEGORIES, f"CATEGORIES 缺 {c}"
 
-    def test_categories_total_11(self):
-        """CATEGORIES 应该是 8 + 4 = 12 项（注意：原 7 + system_failure + 4 infra = 12）"""
-        # 原有: correct, schema_wrong, column_wrong, aggregation_wrong, filter_wrong, syntax, other, system_failure = 8
+    def test_categories_contain_incomplete_semantics(self):
+        """CATEGORIES 应包含 incomplete_semantics"""
+        assert "incomplete_semantics" in JudgeModel.CATEGORIES
+
+    def test_categories_total_13(self):
+        """CATEGORIES 应该是 9 + 4 = 13 项（correct + incomplete_semantics + 5 语义错 + other + system_failure + 4 infra）"""
+        # 原有: correct, incomplete_semantics, schema_wrong, column_wrong, aggregation_wrong,
+        #       filter_wrong, syntax, other, system_failure = 9
         # 新增: 4 个 infrastructure_*
-        # 合计: 12
-        assert len(JudgeModel.CATEGORIES) == 12
+        # 合计: 13
+        assert len(JudgeModel.CATEGORIES) == 13
 
 
 # ── PROMPT_TEMPLATE ──────────────────────────────────────────────
@@ -56,17 +61,20 @@ class TestPromptTemplateInfra:
         for kw in ["timeout", "connection_error", "planner_error", "permission_denied"]:
             assert kw in t, f"PROMPT_TEMPLATE 缺 {kw}"
 
-    def test_prompt_category_list_expanded_to_11(self):
-        """类别清单应从 7 扩展到 11（多了 4 个 infra）"""
+    def test_prompt_category_list_expanded_to_12(self):
+        """类别清单应从 7 扩展到 12（多了 incomplete_semantics + 4 个 infra）"""
         # 旧文案 "从以下 7 类中选一个" 应该已替换
         assert "7 类" not in JudgeModel.PROMPT_TEMPLATE
-        assert "11 类" in JudgeModel.PROMPT_TEMPLATE
+        assert "11 类" not in JudgeModel.PROMPT_TEMPLATE
+        assert "12 类" in JudgeModel.PROMPT_TEMPLATE
         # 新增的 4 个 infra 类别都应在类别清单中
         for c in [
             "infrastructure_timeout", "infrastructure_conn",
             "infrastructure_planner", "infrastructure_permission",
         ]:
             assert c in JudgeModel.PROMPT_TEMPLATE
+        # incomplete_semantics 也应在类别清单中
+        assert "incomplete_semantics" in JudgeModel.PROMPT_TEMPLATE
 
 
 # ── _normalize_verdict ───────────────────────────────────────────
@@ -292,3 +300,87 @@ class TestBuildInfraInstruct:
         assert JudgeModel.INFRA_ERROR_TYPES == frozenset({
             "timeout", "connection_error", "planner_error", "permission_denied",
         })
+
+
+# ── incomplete_semantics ─────────────────────────────────────────
+
+class TestIncompleteSemantics:
+    """新增 incomplete_semantics 类别的边界与 normalize 行为"""
+
+    def _bare_instance(self):
+        return JudgeModel.__new__(JudgeModel)
+
+    def test_incomplete_semantics_in_categories(self):
+        """CATEGORIES 应包含 incomplete_semantics"""
+        assert "incomplete_semantics" in JudgeModel.CATEGORIES
+
+    def test_prompt_mentions_incomplete_semantics(self):
+        """PROMPT_TEMPLATE 中应出现 incomplete_semantics"""
+        assert "incomplete_semantics" in JudgeModel.PROMPT_TEMPLATE
+
+    def test_correct_true_with_incomplete_semantics_forces_false(self):
+        """incomplete_semantics 不能与 correct=True 共存"""
+        m = self._bare_instance()
+        v = m._normalize_verdict({
+            "correct": True, "category": "incomplete_semantics", "reason": "x",
+        })
+        assert v["correct"] is False
+        assert v["category"] == "incomplete_semantics"
+
+    def test_correct_false_with_incomplete_semantics_unchanged(self):
+        """incomplete_semantics + correct=False 保持不变"""
+        m = self._bare_instance()
+        v = m._normalize_verdict({
+            "correct": False, "category": "incomplete_semantics", "reason": "x",
+        })
+        assert v["correct"] is False
+        assert v["category"] == "incomplete_semantics"
+
+
+# ── infrastructure 类别与 correct 的对称性 ─────────────────────
+
+class TestNormalizeVerdictInfraSymmetry:
+    """基础设施类别与 correct 的对称性：尊重模型判断，不强制覆盖"""
+
+    def _bare_instance(self):
+        return JudgeModel.__new__(JudgeModel)
+
+    @pytest.mark.parametrize("cat", [
+        "infrastructure_timeout", "infrastructure_conn",
+        "infrastructure_planner", "infrastructure_permission",
+    ])
+    def test_infrastructure_category_respects_correct_false(self, cat):
+        """correct=False + category=infrastructure_* 时应尊重模型判断，保持 correct=False"""
+        m = self._bare_instance()
+        v = m._normalize_verdict({"correct": False, "category": cat, "reason": "x"})
+        assert v["correct"] is False
+        assert v["category"] == cat
+
+
+# ── prompt 边界规则文本测试 ───────────────────────────────────────
+
+class TestPromptBoundaryRules:
+    """prompt 中关键边界文案的静态检查"""
+
+    def test_prompt_does_not_suggest_cartesian_as_syntax(self):
+        """笛卡尔积不应再被建议判 syntax"""
+        assert "笛卡尔积 → 判 **syntax**" not in JudgeModel.PROMPT_TEMPLATE
+        assert "笛卡尔积" in JudgeModel.PROMPT_TEMPLATE
+        assert "归 **schema_wrong**" in JudgeModel.PROMPT_TEMPLATE
+
+    def test_prompt_mentions_counter_or_histogram_in_aggregation(self):
+        """aggregation_wrong 段应覆盖 Counter/Histogram/GROUP BY 子模式"""
+        boundary_section = JudgeModel.PROMPT_TEMPLATE.split("## 判定边界与反例")[1]
+        agg_section = boundary_section.split("**aggregation_wrong**")[1]
+        keywords = ["Counter", "Histogram", "GROUP BY", "ORDER BY", "LIMIT"]
+        hits = [kw for kw in keywords if kw in agg_section]
+        assert len(hits) >= 2, f"aggregation_wrong 段缺少关键子模式，命中: {hits}"
+
+    def test_prompt_mentions_infrastructure_boundaries(self):
+        """基础设施类别应在边界描述段中出现"""
+        boundary_section = JudgeModel.PROMPT_TEMPLATE.split("## 判定边界与反例")[1]
+        for c in [
+            "infrastructure_timeout", "infrastructure_conn",
+            "infrastructure_planner", "infrastructure_permission",
+        ]:
+            assert c in boundary_section, f"边界描述段缺少 {c}"

@@ -224,6 +224,7 @@ def fmt_overall(o: Dict) -> str:
 # 类别在报表中的固定顺序（看起来稳定）
 CATEGORY_ORDER = [
     "correct",
+    "incomplete_semantics",
     "schema_wrong",
     "column_wrong",
     "aggregation_wrong",
