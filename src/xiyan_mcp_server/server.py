@@ -277,9 +277,9 @@ schema_filter_config = global_config.get("schema_filter", {})
 schema_filter_enabled = schema_filter_config.get("enabled", False)
 table_list_path = schema_filter_config.get("table_list", None)  # 可选：全量表模式用的表名清单
 
-# 加载 table_list（若配置了路径）
+# 加载 table_list（仅在 schema_filter 未启用时加载，与 config.yml 注释一致）
 _FULL_TABLE_LIST = None
-if table_list_path:
+if table_list_path and not schema_filter_enabled:
     if not os.path.isabs(table_list_path):
         table_list_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), '..', '..', table_list_path
@@ -291,6 +291,15 @@ if table_list_path:
     except Exception as e:
         logger.warning(f"Failed to load table list from {table_list_path}: {e}")
         _FULL_TABLE_LIST = None
+
+def _qualify_table_name(name: str) -> str:
+    """为裸表名添加 schema 前缀（cockroachdb* → cockroach_logs.，已含 '.' → 原样，其它 → cockroach_metrics.）"""
+    if name.startswith("cockroachdb"):
+        return f"cockroach_metrics.{name}"
+    if "." in name:
+        return name
+    return f"cockroach_metrics.{name}"
+
 
 def _build_table_only_mschema(table_names: list, db_name: str = "cockroach") -> str:
     """构建极简 M-Schema：通用列说明 + 表名列表（无字段详情）"""
@@ -304,12 +313,7 @@ def _build_table_only_mschema(table_names: list, db_name: str = "cockroach") -> 
     )
     lines = [COLUMN_LEGEND, f"【DB_ID】 {db_name}", "【Schema】"]
     for t in sorted(table_names):
-        if t.startswith("cockroachdb"):
-            full_name = f"cockroach_logs.{t}"
-        elif "." in t:
-            full_name = t
-        else:
-            full_name = f"cockroach_metrics.{t}"
+        full_name = _qualify_table_name(t)
         lines.append(f"# Table: {full_name}")
         lines.append("[")
         lines.append("]")
@@ -988,21 +992,25 @@ def sql_fix(
 
     # ── 按错误类型注入额外上下文，提高修复成功率 ──
 
-    # table_not_found: 注入候选表名列表（模糊匹配）
+    # table_not_found: 注入候选表名列表（模糊匹配，带 schema 前缀）
     if error_type == "table_not_found" and _FULL_TABLE_LIST:
         wrong_tables = re.findall(r'table "([^"]+)"', error_info)
         if not wrong_tables:
             wrong_tables = extract_tables_from_sql(sql_query)
+        table_map = {t.lower(): t for t in _FULL_TABLE_LIST}
         candidates = []
         for wt in wrong_tables:
             short = wt.split('.')[-1] if '.' in wt else wt
             matches = difflib.get_close_matches(
                 short.lower(),
-                [t.lower() for t in _FULL_TABLE_LIST],
+                list(table_map.keys()),
                 n=5, cutoff=0.3,
             )
-            candidates.extend(matches)
+            for m in matches:
+                candidates.append(_qualify_table_name(table_map[m]))
         if candidates:
+            # 去重（保持顺序）
+            candidates = list(dict.fromkeys(candidates))
             system_prompt += "\n【schema 中实际存在的相似表名（请从中选择）】\n"
             system_prompt += "\n".join(f"  - {c}" for c in candidates[:10])
 
