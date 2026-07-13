@@ -368,7 +368,7 @@ class SchemaRetriever:
 
         return sub_schema_str
     
-    def retrieve_and_build(
+    async def retrieve_and_build(
         self,
         query: str,
         database: Optional[str] = None,
@@ -441,7 +441,7 @@ class SchemaRetriever:
                         item["embedding_content"] = ec
 
             # Stage 2: 模型精筛到 M 张
-            stage2_results = self.stage2_filter.filter(
+            stage2_results = await self.stage2_filter.filter(
                 query=query,
                 candidates=stage1_results,
                 top_m=m,

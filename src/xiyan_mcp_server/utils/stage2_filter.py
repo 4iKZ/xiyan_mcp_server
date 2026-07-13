@@ -9,14 +9,21 @@ Stage 2 Schema 筛选服务
               （便于实验中精确归因，调用方可决定是否吞掉异常）
 - 输入信息粒度：仅表名 + friendly_name + description（轻量级，控制 prompt 长度）
 """
+import asyncio
 import json
 import logging
 import re
 from typing import List, Dict, Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
+
+
+# Stage2 精筛 LLM 调用的并发限流（独立于主 LLM 的 Semaphore）
+# 原因：stage2 用的是 qwen3-32b（:8001），主 LLM 用的是 xiyan-32b（:18000），
+# 两个 vLLM 端点的 max_num_seqs 互不影响；分别限流可让两侧都达到 2 并发。
+_STAGE2_SEM = asyncio.Semaphore(2)
 
 
 class Stage2FilterError(Exception):
@@ -30,7 +37,7 @@ class Stage2Filter:
 
     用法：
         f = Stage2Filter(config)
-        kept = f.filter(query, candidates, top_m=5)
+        kept = await f.filter(query, candidates, top_m=5)
         # kept 是 candidates 的子集（保持原顺序），长度 ≤ top_m
     """
 
@@ -73,7 +80,7 @@ class Stage2Filter:
         self.timeout = float(config.get("timeout", 60))
         self.enable_thinking = bool(config.get("enable_thinking", False))
 
-        self._client = OpenAI(
+        self._client = AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.api_url,
             timeout=self.timeout,
@@ -169,14 +176,17 @@ class Stage2Filter:
             f"未能从模型输出中提取表名数组; 原始输出={raw[:300]!r}"
         )
 
-    def filter(
+    async def filter(
         self,
         query: str,
         candidates: List[Dict],
         top_m: int,
     ) -> List[Dict]:
         """
-        从候选表中精筛出 top_m 张最相关的表
+        从候选表中精筛出 top_m 张最相关的表（异步版本）
+
+        与 sync 版差异：LLM 调用走 ``run_in_executor`` + ``_STAGE2_SEM`` 限流，
+        让 event loop 在 vLLM 网络阻塞期间可服务其他请求。
 
         Args:
             query: 用户自然语言问题
@@ -214,18 +224,19 @@ class Stage2Filter:
             f"n_candidates={len(candidates)} top_m={top_m} prompt_chars={len(prompt)}"
         )
 
-        # 调用模型
+        # 调用模型（异步 + Semaphore 限流）
         # Qwen3 通过 chat_template_kwargs.enable_thinking 控制是否产出 <think> 段
         # vLLM/OpenAI-compat endpoint 支持 extra_body 透传非标准参数
         try:
-            completion = self._client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                extra_body={
-                    "chat_template_kwargs": {"enable_thinking": self.enable_thinking}
-                },
-            )
+            async with _STAGE2_SEM:
+                completion = await self._client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    extra_body={
+                        "chat_template_kwargs": {"enable_thinking": self.enable_thinking}
+                    },
+                )
         except Exception as e:
             # 把完整错误打到 logger.error，并连同 prompt 头尾片段一起暴露给上层
             logger.error(

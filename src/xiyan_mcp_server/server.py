@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import difflib
 import logging
 import os
@@ -22,7 +23,7 @@ from .utils.db_source import HITLSQLDatabase, shutdown_sql_executor
 from .utils.db_util import init_db_conn
 from .utils.file_util import extract_sql_from_qwen
 from .utils.hdfs_util import HDFSUploader, convert_to_parquet_and_upload
-from .utils.llm_util import call_openai_sdk
+from .utils.llm_util import call_openai_sdk_async
 from .utils.query_tracker import (
     get_query_tracker, classify_error, extract_tables_from_sql,
     extract_relevant_schema, count_available_tables,
@@ -230,6 +231,13 @@ global_db_config = global_config["database"]
 global_system_prefix = global_db_config.get("system", "")
 global_xiyan_db_config = get_xiyan_config(global_db_config)
 dialect = global_db_config.get("dialect", "mysql")
+
+# ── 主 LLM 并发限流 ──
+# 同步 OpenAI 客户端调 vLLM 时阻塞线程，包到 run_in_executor 后用 Semaphore
+# 限制同时进行的 LLM 请求数（=同时打到 vLLM 的 query 数）。
+# 默认 2：既能拆掉"两个 batch 排队"的瓶颈，又不压爆 vLLM KV cache；
+# 如需更高吞吐，可按 vLLM 显存余量上调。
+_LLM_SEM = asyncio.Semaphore(2)
 # 规范化 dialect 作为 URL scheme（下划线不允许在 URL scheme 中）
 dialect_scheme = dialect.replace("_", "-")
 
@@ -649,7 +657,7 @@ def _inject_limit(sql: str) -> tuple:
     return f"{sql_stripped} LIMIT {limit_val}", True
 
 
-def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
+async def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     """
     Transfers the input natural language question to sql query (known as Text-to-sql) and executes it on the database.
 
@@ -735,9 +743,12 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
     }
 
     try:
-        t_llm_start = time.time()
-        response = call_openai_sdk(**param)
+        t_llm_queue = time.time()
+        async with _LLM_SEM:
+            t_llm_start = time.time()
+            response = await call_openai_sdk_async(**param)
         llm_latency_ms = (time.time() - t_llm_start) * 1000
+        llm_queue_ms = (t_llm_start - t_llm_queue) * 1000
         content = response.choices[0].message.content
         logger.debug(f"LLM Raw Response: {content}")
         sql_query = extract_sql_from_qwen(content)
@@ -756,6 +767,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
 
         tracking["initial_sql"] = sql_query or ""
         tracking["llm_latency_ms"] = round(llm_latency_ms, 2)
+        tracking["llm_queue_ms"] = round(llm_queue_ms, 2)
 
         _data: list = []
         _columns: list = []
@@ -791,7 +803,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
                         prev_sql if base_sql == "prev" else initial_sql
                     )
 
-                    repaired_sql = sql_fix(
+                    repaired_sql = await sql_fix(
                         db_env.dialect, db_env.mschema_str, query,
                         fix_base_sql, res, error_type=error_type,
                         dialect_rules=dialect_rules, time_rules=time_rules,
@@ -878,7 +890,7 @@ def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
         }
 
 
-def sql_fix(
+async def sql_fix(
     dialect: str, mschema: str, query: str, sql_query: str, error_info: str,
     error_type: str = "other",
     dialect_rules: str = "", time_rules: str = "",
@@ -1042,7 +1054,8 @@ def sql_fix(
         "api_version": model_config.get("api_version"),
     }
 
-    response = call_openai_sdk(**param)
+    async with _LLM_SEM:
+        response = await call_openai_sdk_async(**param)
     content = response.choices[0].message.content
     sql_query = extract_sql_from_qwen(content)
 
@@ -1106,7 +1119,7 @@ def format_result(result: dict, format_type: str = "markdown") -> str:
         return "\n".join([header, separator] + data_rows)
 
 
-def call_xiyan(
+async def call_xiyan(
     query: str,
     format_type: str = "markdown",
     stage2_enabled: Optional[bool] = None,
@@ -1148,7 +1161,7 @@ def call_xiyan(
             retriever = get_schema_retriever(db_source)
 
             # 检索相关表并构建 Sub-Schema
-            table_names, sub_schema, retrieval_meta = retriever.retrieve_and_build(
+            table_names, sub_schema, retrieval_meta = await retriever.retrieve_and_build(
                 query,
                 database=global_db_config.get("database"),
                 system_prefix=global_system_prefix,
@@ -1176,7 +1189,7 @@ def call_xiyan(
                 f"{len(env.mschema_str)} 字符"
             )
 
-    res = sql_gen_and_execute(env, query)
+    res = await sql_gen_and_execute(env, query)
 
     # --- 记录追踪数据 ---
     tracking = res.pop("_tracking", {})
@@ -1248,7 +1261,7 @@ def call_xiyan(
 
 
 @mcp.tool()
-def get_data(
+async def get_data(
     query: str,
     format: str = "markdown",
     stage2_enabled: Optional[bool] = None,
@@ -1269,7 +1282,7 @@ def get_data(
             传入后追踪文件会变成 query_tracker_{date}_{tag}.jsonl，且每条记录会带 run_tag 字段。
     """
 
-    res = call_xiyan(
+    res = await call_xiyan(
         query,
         format_type=format,
         stage2_enabled=stage2_enabled,
@@ -1289,12 +1302,19 @@ def extract_hdfs_path_from_query(query: str) -> str:
     - 仅目录 → 如 "上传到test_batch目录" → 返回 "test_batch/"
     - 完整路径 → 如 "保存到project/daily_report" → 返回 "project/daily_report"
 
-    Args:
-        query: 用户自然语言查询
-
-    Returns:
-        提取的 HDFS 路径字符串，如果未检测到路径意图则返回空字符串
+    同步包装：内部转调 ``_extract_hdfs_path_async``，因为它本身要被 server
+    里 sync 上下文调用（HDFS 上传工具），不能直接 await。
+    这里用 ``asyncio.run`` 起独立 event loop 跑 async 实现。
     """
+    try:
+        return asyncio.run(_extract_hdfs_path_async(query))
+    except Exception as e:
+        logger.warning(f"提取 HDFS 路径失败（将使用默认路径）: {e}")
+        return ""
+
+
+async def _extract_hdfs_path_async(query: str) -> str:
+    """extract_hdfs_path_from_query 的异步实现。"""
     import re as _re
 
     prompt = (
@@ -1350,7 +1370,8 @@ def extract_hdfs_path_from_query(query: str) -> str:
             "key": model_config["key"],
             "url": model_config["url"],
         }
-        response = call_openai_sdk(**param)
+        async with _LLM_SEM:
+            response = await call_openai_sdk_async(**param)
         raw = response.choices[0].message.content
         logger.info(f"HDFS路径提取 LLM 原始响应: {repr(raw)}")
 
@@ -1398,7 +1419,7 @@ def _strip_path_clauses(query: str) -> str:
 
 
 @mcp.tool()
-def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = "", run_tag: Optional[str] = None) -> list[TextContent]:
+async def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = "", run_tag: Optional[str] = None) -> list[TextContent]:
     """Execute natural language query and upload results to HDFS in parquet format
 
     This tool performs the following steps:
@@ -1469,7 +1490,7 @@ def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = 
         if schema_filter_enabled:
             try:
                 retriever = get_schema_retriever(db_source)
-                table_names, sub_schema, retrieval_meta = retriever.retrieve_and_build(
+                table_names, sub_schema, retrieval_meta = await retriever.retrieve_and_build(
                     query,
                     database=global_db_config.get("database"),
                     system_prefix=global_system_prefix
@@ -1481,7 +1502,7 @@ def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: str = 
                 logger.warning(f"Schema 过滤失败，使用完整 Schema: {e}")
 
         # 执行 SQL 查询（使用剥离路径后的查询文本）
-        res = sql_gen_and_execute(env, sql_query)
+        res = await sql_gen_and_execute(env, sql_query)
 
         # --- 记录追踪数据 ---
         tracking = res.pop("_tracking", {})
