@@ -81,14 +81,14 @@ class TestStage2Filter:
         """Stage2Filter 能正确初始化"""
         assert stage2_filter is not None
 
-    def test_filter_returns_results(self, stage2_filter):
+    async def test_filter_returns_results(self, stage2_filter):
         """模型调用返回非空结果"""
-        kept = stage2_filter.filter(query=QUERY, candidates=CANDIDATES, top_m=2)
+        kept = await stage2_filter.filter(query=QUERY, candidates=CANDIDATES, top_m=2)
         assert len(kept) > 0, "精筛结果为空"
 
-    def test_result_table_names_valid(self, stage2_filter):
+    async def test_result_table_names_valid(self, stage2_filter):
         """返回的表名在候选中存在"""
-        kept = stage2_filter.filter(query=QUERY, candidates=CANDIDATES, top_m=2)
+        kept = await stage2_filter.filter(query=QUERY, candidates=CANDIDATES, top_m=2)
         candidate_names = {c["table_name"] for c in CANDIDATES}
         for item in kept:
             assert item["table_name"] in candidate_names, (
