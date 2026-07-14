@@ -1293,7 +1293,7 @@ async def get_data(
     return [TextContent(type="text", text=res)]
 
 
-def extract_hdfs_path_from_query(query: str) -> str:
+async def extract_hdfs_path_from_query(query: str) -> str:
     """从自然语言查询中提取 HDFS 存储路径
 
     支持中文自然语言描述，LLM 会自动识别以下意图：
@@ -1301,20 +1301,7 @@ def extract_hdfs_path_from_query(query: str) -> str:
     - 仅文件名 → 如 "命名为my_report" → 返回 "my_report"
     - 仅目录 → 如 "上传到test_batch目录" → 返回 "test_batch/"
     - 完整路径 → 如 "保存到project/daily_report" → 返回 "project/daily_report"
-
-    同步包装：内部转调 ``_extract_hdfs_path_async``，因为它本身要被 server
-    里 sync 上下文调用（HDFS 上传工具），不能直接 await。
-    这里用 ``asyncio.run`` 起独立 event loop 跑 async 实现。
     """
-    try:
-        return asyncio.run(_extract_hdfs_path_async(query))
-    except Exception as e:
-        logger.warning(f"提取 HDFS 路径失败（将使用默认路径）: {e}")
-        return ""
-
-
-async def _extract_hdfs_path_async(query: str) -> str:
-    """extract_hdfs_path_from_query 的异步实现。"""
     import re as _re
 
     prompt = (
@@ -1465,7 +1452,7 @@ async def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: 
     # 如果没有显式提供 hdfs_path，尝试从自然语言查询中提取
     sql_query = query  # 默认用于 SQL 生成
     if not hdfs_path:
-        extracted_path = extract_hdfs_path_from_query(query)
+        extracted_path = await extract_hdfs_path_from_query(query)
         if extracted_path:
             hdfs_path = extracted_path
             logger.info(f"从自然语言查询中提取到 HDFS 路径: {hdfs_path}")
