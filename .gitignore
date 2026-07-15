@@ -29,13 +29,13 @@ ENV/
 env/
 .venv
 virtualenv/
-
+opencode
 # Testing
 .pytest_cache/
 .coverage
 .coverage.*
 htmlcov/
-.tox/
+.tox//
 .nox/
 .hypothesis/
 
