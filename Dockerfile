@@ -10,10 +10,10 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# 安装系统依赖（如果需要）
-# RUN apt-get update && apt-get install -y --no-install-recommends \
-#     gcc \
-#     && rm -rf /var/lib/apt/lists/*
+# 安装系统依赖：ssh/scp 用于 HDFS Tool
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
 
 # 复制项目文件
 COPY . .
@@ -29,8 +29,8 @@ RUN if [ ! -f src/xiyan_mcp_server/config.yml ]; then \
 # 暴露端口（用于 HTTP/SSE 传输模式）
 EXPOSE 8000
 
-# 默认使用 stdio 传输模式
-CMD ["python", "-m", "xiyan_mcp_server"]
+# 默认使用 streamable-http 传输模式（单 worker）
+CMD ["python", "-m", "xiyan_mcp_server", "streamable-http", "--host", "0.0.0.0", "--port", "8000"]
 
 # 其他启动方式示例：
 # 1. stdio 模式（默认）：

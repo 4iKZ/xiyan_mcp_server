@@ -68,3 +68,46 @@ redis:
   port: 6379
   password: ""
   index_name: "xiyan_schema"
+
+# ── 运行时并发控制配置（可选，缺失时使用默认值）──
+runtime:
+  max_in_flight: 4              # 单进程最大同时处理请求数
+  max_waiters: 8                # 最大排队请求数
+  admission_wait_seconds: 5     # 排队等待上限（秒）
+  get_data_deadline_seconds: 180  # get_data 请求超时
+  hdfs_deadline_seconds: 300    # HDFS 请求超时
+
+concurrency:
+  llm: 2                        # LLM 每组并发上限
+  schema_metadata: 2            # Schema 元数据并发上限
+  sql: 4                        # SQL 执行并发上限
+  hdfs: 2                       # HDFS 并发上限
+
+database_pool:
+  pool_size: 6                  # 连接池大小
+  max_overflow: 0               # 最大溢出连接数
+  pool_timeout_seconds: 5       # 获取连接超时
+  query_timeout_seconds: 60     # 查询超时
+  metadata_reserved_connections: 2  # 元数据保留连接数
+
+hdfs_timeouts:
+  connect_timeout_seconds: 10   # SSH 连接超时
+  scp_timeout_seconds: 60       # SCP 传输超时
+  put_timeout_seconds: 120      # HDFS put 超时
+  kill_grace_seconds: 2         # 进程终止宽限期
+
+tracker:
+  queue_capacity: 1000          # 追踪队列容量
+  batch_size: 50                # 批量写入大小
+  flush_interval_seconds: 1     # 刷新间隔
+  shutdown_flush_seconds: 5     # 关闭时刷新超时
+
+shutdown:
+  drain_seconds: 30             # 优雅关闭等待时间
+  cancellation_seconds: 5       # 取消协程等待时间
+
+metrics:
+  enabled: true                 # 启用指标收集
+
+transport:
+  stateless_http: true          # Streamable HTTP 无状态模式
