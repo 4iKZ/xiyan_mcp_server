@@ -8,6 +8,7 @@ import signal
 import sys
 import time
 import threading
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -18,6 +19,10 @@ from mcp.server import FastMCP
 from mcp.types import TextContent
 
 from .database_env import DataBaseEnv
+from .runtime import (
+    Deadline, DeadlineExceeded, ErrorCode, ServiceError,
+    RuntimeConfig, RuntimeController, error_response,
+)
 from .utils.db_config import DBConfig
 from .utils.db_source import HITLSQLDatabase, shutdown_sql_executor
 from .utils.db_util import init_db_conn
@@ -28,6 +33,11 @@ from .utils.query_tracker import (
     get_query_tracker, classify_error, extract_tables_from_sql,
     extract_relevant_schema, count_available_tables,
 )
+from .utils.sql_executor import init_sql_manager, shutdown_sql_manager
+from .utils.tracker_async import init_async_tracker, shutdown_async_tracker, get_async_tracker
+from .utils.llm_gateway import init_llm_gateway, shutdown_llm_gateway, get_llm_gateway
+from .utils.hdfs_async import AsyncHDFSUploader
+from .utils.embedding_async import init_async_embedding, shutdown_async_embedding
 
 
 def create_db_source(db_engine, dialect: str, db_name: str = '', system_prefix: str = ''):
@@ -46,75 +56,54 @@ logging.basicConfig(
 logger = logging.getLogger("xiyan_mcp_server")
 
 
-# 优雅关闭机制
+# 优雅关闭机制（由 RuntimeController 统一管理，保留兼容标志）
 _shutting_down = False
 _shutdown_lock = threading.Lock()
+
+# 全局 RuntimeController（在 lifespan 中初始化）
+_runtime_controller: Optional[RuntimeController] = None
+
+# 全局 Async HDFS 上传器（在 lifespan 中初始化）
+_async_hdfs_uploader: Optional[AsyncHDFSUploader] = None
+
+
+def get_runtime_controller() -> Optional[RuntimeController]:
+    """获取全局 RuntimeController"""
+    return _runtime_controller
 
 
 def is_shutting_down():
     """检查服务器是否正在关闭"""
+    rc = _runtime_controller
+    if rc is not None:
+        return rc.admission.is_draining
     with _shutdown_lock:
         return _shutting_down
 
 
 def signal_handler(sig, frame):
     """
-    处理退出信号，优雅地关闭服务器
+    处理退出信号（兼容旧路径，新路径由 lifespan 管理）
 
-    实现步骤：
-    1. 设置关闭标志，阻止新请求
-    2. 等待活跃请求完成（最多5秒）
-    3. 清理资源
-    4. 退出
+    当 RuntimeController 存在时，仅设置 draining 标志，
+    实际关闭由 FastMCP lifespan 和 Uvicorn 管理。
     """
     global _shutting_down
 
+    rc = _runtime_controller
+    if rc is not None:
+        # 新路径：标记 draining，然后退出（触发 lifespan 关闭流程）
+        rc.admission.start_draining()
+        logger.info(f"收到信号 {sig}，已标记 draining，等待 lifespan 关闭...")
+        sys.exit(0)
+
+    # 旧路径兼容（无 RuntimeController 时）
     with _shutdown_lock:
         if _shutting_down:
-            logger.warning("关闭信号已被处理，正在等待清理完成...")
-            return  # 直接返回，让第一次信号处理完成清理
+            return
         _shutting_down = True
 
     logger.info(f"收到信号 {sig}，开始优雅关闭服务器...")
-
-    # 等待活跃请求完成（最多5秒）
-    graceful_shutdown_timeout = 5
-    logger.info(f"等待 {graceful_shutdown_timeout} 秒让活跃请求完成...")
-
-    for i in range(graceful_shutdown_timeout):
-        time.sleep(1)
-        remaining = graceful_shutdown_timeout - i - 1
-        if remaining > 0:
-            logger.debug(f"剩余等待时间: {remaining} 秒")
-
-    logger.info("开始清理资源...")
-
-    # 清理数据库引擎
-    global _db_engine
-    if _db_engine is not None:
-        try:
-            _db_engine.dispose()
-            logger.info("数据库连接池已释放")
-        except Exception as e:
-            logger.error(f"释放数据库连接时出错: {e}")
-
-    # 清理 SQL 执行线程池
-    try:
-        shutdown_sql_executor()
-    except Exception as e:
-        logger.error(f"关闭 SQL 线程池时出错: {e}")
-
-    # 清理 Redis 连接（如果启用）
-    if schema_filter_enabled:
-        try:
-            global _redis_client
-            if _redis_client is not None:
-                _redis_client.close()
-                logger.info("Redis 连接已关闭")
-        except Exception as e:
-            logger.error(f"关闭 Redis 连接时出错: {e}")
-
-    logger.info("服务器已安全关闭")
     sys.exit(0)
 
 
@@ -512,7 +501,138 @@ if schema_filter_enabled:
         schema_filter_enabled = False
 
 logger.info("正在初始化 FastMCP...")
-mcp = FastMCP("xiyan", **mcp_config)
+
+# ── Lifespan 上下文管理器：初始化/关闭运行时组件 ──
+@asynccontextmanager
+async def app_lifespan(app):
+    """FastMCP lifespan：初始化 RuntimeController、SqlExecutionManager、AsyncTracker
+    
+    关闭顺序：
+    1. 停止接收新请求（draining）
+    2. 最多等待 drain_seconds drain 活跃请求
+    3. 取消剩余协程，等待 cancellation_seconds
+    4. flush Tracker（最多 shutdown_flush_seconds）
+    5. 关闭 SQL executor 和数据库 engine
+    """
+    global _runtime_controller
+    
+    # ── 初始化阶段 ──
+    try:
+        # 1. 解析运行时配置
+        runtime_config = RuntimeConfig.from_dict(global_config)
+        runtime_config.validate()
+        logger.info(f"运行时配置已加载: max_in_flight={runtime_config.max_in_flight}, "
+                    f"max_waiters={runtime_config.max_waiters}")
+        
+        # 2. 创建 RuntimeController
+        rc = RuntimeController(runtime_config)
+        _runtime_controller = rc
+        
+        # 3. 初始化 SqlExecutionManager
+        init_sql_manager(
+            sql_concurrency=runtime_config.concurrency.sql,
+            slot_wait_seconds=runtime_config.admission_wait_seconds,
+            query_timeout_seconds=runtime_config.database.query_timeout_seconds,
+        )
+        
+        # 4. 初始化 LLM Gateway
+        init_llm_gateway(default_group_concurrency=runtime_config.concurrency.llm)
+        
+        # 5. 初始化 AsyncQueryTracker
+        tracker = init_async_tracker(
+            queue_capacity=runtime_config.tracker.queue_capacity,
+            batch_size=runtime_config.tracker.batch_size,
+            flush_interval_seconds=runtime_config.tracker.flush_interval_seconds,
+            shutdown_flush_seconds=runtime_config.tracker.shutdown_flush_seconds,
+        )
+        await tracker.start()
+        
+        # 6. 启动事件循环延迟监控
+        await rc.start_lag_monitor()
+        
+        # 7. 初始化 Async HDFS 上传器（仅当 HDFS 启用时）
+        global _async_hdfs_uploader
+        if hdfs_enabled:
+            _async_hdfs_uploader = AsyncHDFSUploader(
+                hdfs_config,
+                timeouts=runtime_config.hdfs_timeouts,
+                max_concurrency=runtime_config.concurrency.hdfs,
+            )
+            logger.info("异步 HDFS 上传器已初始化")
+        
+        # 8. 初始化 Async Embedding（仅当 Schema 过滤启用时）
+        if schema_filter_enabled:
+            embedding_svc = init_async_embedding(
+                embedding_config,
+                schema_metadata_concurrency=runtime_config.concurrency.schema_metadata,
+            )
+            await embedding_svc.start()
+        
+        # 9. 标记 ready
+        rc.mark_ready()
+        logger.info("Lifespan 初始化完成，服务已就绪")
+        
+    except Exception as e:
+        logger.error(f"Lifespan 初始化失败: {e}", exc_info=True)
+        if _runtime_controller is not None:
+            _runtime_controller.mark_init_failed(str(e))
+        raise
+    
+    yield
+    
+    # ── 关闭阶段 ──
+    logger.info("Lifespan 关闭开始...")
+    rc = _runtime_controller
+    if rc is None:
+        return
+    
+    shutdown_cfg = rc.config.shutdown
+    
+    # 1. 停止接收新请求
+    rc.admission.start_draining()
+    logger.info("已停止接收新请求，开始 drain...")
+    
+    # 2. 等待活跃请求完成（最多 drain_seconds）
+    drain_deadline = time.monotonic() + shutdown_cfg.drain_seconds
+    while rc.admission.active_count > 0 and time.monotonic() < drain_deadline:
+        await asyncio.sleep(0.1)
+    if rc.admission.active_count > 0:
+        logger.warning(f"Drain 超时，仍有 {rc.admission.active_count} 个活跃请求")
+    
+    # 3. 取消剩余协程
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
+    for t in tasks:
+        t.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+        logger.info(f"已取消 {len(tasks)} 个残留协程")
+    
+    # 4. 终止 HDFS 子进程
+    if _async_hdfs_uploader is not None:
+        await _async_hdfs_uploader.terminate_all_processes()
+    
+    # 5. 关闭 RuntimeController（停止 lag monitor）
+    await rc.shutdown()
+    
+    # 6. flush Tracker
+    await shutdown_async_tracker()
+    
+    # 7. 关闭 LLM Gateway
+    await shutdown_llm_gateway()
+    
+    # 8. 关闭 Async Embedding
+    await shutdown_async_embedding()
+    
+    # 9. 关闭 SQL executor
+    await shutdown_sql_manager()
+    
+    # 10. 关闭数据库 engine
+    shutdown_sql_executor()
+    
+    logger.info("Lifespan 关闭完成")
+
+
+mcp = FastMCP("xiyan", lifespan=app_lifespan, **mcp_config)
 logger.info("FastMCP 初始化完成")
 
 logger.info("正在注册资源和工具...")
@@ -657,7 +777,7 @@ def _inject_limit(sql: str) -> tuple:
     return f"{sql_stripped} LIMIT {limit_val}", True
 
 
-async def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
+async def sql_gen_and_execute(db_env: DataBaseEnv, query: str, deadline: Optional[Deadline] = None) -> dict:
     """
     Transfers the input natural language question to sql query (known as Text-to-sql) and executes it on the database.
 
@@ -744,9 +864,23 @@ async def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
 
     try:
         t_llm_queue = time.time()
-        async with _LLM_SEM:
+        # 使用 LLM Gateway（支持分组限流 + deadline）
+        gateway = get_llm_gateway()
+        if gateway is not None and deadline is not None:
             t_llm_start = time.time()
-            response = await call_openai_sdk_async(**param)
+            response = await gateway.chat_completion(
+                base_url=model_config["url"],
+                api_key=model_config["key"],
+                model=model_config["name"],
+                messages=messages,
+                deadline=deadline,
+                api_version=model_config.get("api_version"),
+            )
+        else:
+            # 兼容路径：无 Gateway 时保留旧逻辑
+            async with _LLM_SEM:
+                t_llm_start = time.time()
+                response = await call_openai_sdk_async(**param)
         llm_latency_ms = (time.time() - t_llm_start) * 1000
         llm_queue_ms = (t_llm_start - t_llm_queue) * 1000
         content = response.choices[0].message.content
@@ -807,6 +941,7 @@ async def sql_gen_and_execute(db_env: DataBaseEnv, query: str) -> dict:
                         db_env.dialect, db_env.mschema_str, query,
                         fix_base_sql, res, error_type=error_type,
                         dialect_rules=dialect_rules, time_rules=time_rules,
+                        deadline=deadline,
                     )
                     repaired_sql, _ = _inject_limit(repaired_sql)
                     logger.info(
@@ -894,6 +1029,7 @@ async def sql_fix(
     dialect: str, mschema: str, query: str, sql_query: str, error_info: str,
     error_type: str = "other",
     dialect_rules: str = "", time_rules: str = "",
+    deadline: Optional[Deadline] = None,
 ):
     """根据错误类型选择不同的修复 prompt，使每次 retry 都有真实修复概率"""
 
@@ -1054,8 +1190,21 @@ async def sql_fix(
         "api_version": model_config.get("api_version"),
     }
 
-    async with _LLM_SEM:
-        response = await call_openai_sdk_async(**param)
+    # 使用 LLM Gateway（支持分组限流 + deadline）
+    gateway = get_llm_gateway()
+    if gateway is not None and deadline is not None:
+        response = await gateway.chat_completion(
+            base_url=model_config["url"],
+            api_key=model_config["key"],
+            model=model_config["name"],
+            messages=messages,
+            deadline=deadline,
+            api_version=model_config.get("api_version"),
+        )
+    else:
+        # 兼容路径
+        async with _LLM_SEM:
+            response = await call_openai_sdk_async(**param)
     content = response.choices[0].message.content
     sql_query = extract_sql_from_qwen(content)
 
@@ -1126,6 +1275,7 @@ async def call_xiyan(
     stage1_n: Optional[int] = None,
     stage2_m: Optional[int] = None,
     run_tag: Optional[str] = None,
+    deadline: Optional[Deadline] = None,
 ) -> str:
     """Fetch the data from database through a natural language query
 
@@ -1189,13 +1339,12 @@ async def call_xiyan(
                 f"{len(env.mschema_str)} 字符"
             )
 
-    res = await sql_gen_and_execute(env, query)
+    res = await sql_gen_and_execute(env, query, deadline=deadline)
 
     # --- 记录追踪数据 ---
     tracking = res.pop("_tracking", {})
     if tracking:
         try:
-            tracker = get_query_tracker()
             retries_data = tracking.get("retries", [])
             # 根据修复历史判断最终成功/失败
             if retries_data:
@@ -1214,37 +1363,74 @@ async def call_xiyan(
             filtered_tables = filtered_table_names
             tables_used = tracking.get("tables_used", [])
             full_schema = tracking.get("schema_used", "")
-            tracker.record_query(
-                nl_query=query,
-                tool="get_data",
-                database=global_db_config.get("database", ""),
-                dialect=dialect,
-                format_type=format_type,
-                schema_filtered=schema_filter_enabled,
-                initial_sql=tracking.get("initial_sql", ""),
-                exec_success=exec_success,
-                exec_error=tracking.get("exec_error"),
-                error_type=tracking.get("error_type"),
-                result_rows=result_rows,
-                result_preview=result_preview,
-                retry_count=len(retries_data),
-                retries=retries_data,
-                total_latency_ms=tracking.get("total_latency_ms", 0),
-                tables_used=tables_used,
-                fields=res.get("fields", []),
-                available_table_count=count_available_tables(full_schema),
-                relevant_schema=extract_relevant_schema(full_schema, tables_used),
-                filtered_table_names=filtered_tables,
-                # ── 二级筛选追踪 ──
-                stage2_enabled=retrieval_meta.get("stage2_enabled"),
-                stage1_top_n=retrieval_meta.get("stage1_top_n"),
-                stage2_top_m=retrieval_meta.get("stage2_top_m"),
-                stage1_tables=retrieval_meta.get("stage1_tables"),
-                stage2_tables=retrieval_meta.get("stage2_tables"),
-                stage2_model=retrieval_meta.get("stage2_model"),
-                run_tag=run_tag,
-                limit_injected=tracking.get("limit_injected"),
-            )
+            
+            # 使用 Async Tracker（如果可用）
+            async_tracker = get_async_tracker()
+            if async_tracker is not None:
+                async_tracker.record({
+                    "timestamp": datetime.now().isoformat(),
+                    "nl_query": query,
+                    "tool": "get_data",
+                    "database": global_db_config.get("database", ""),
+                    "dialect": dialect,
+                    "format": format_type,
+                    "schema_filtered": schema_filter_enabled,
+                    "initial_sql": tracking.get("initial_sql", ""),
+                    "exec_success": exec_success,
+                    "exec_error": tracking.get("exec_error"),
+                    "error_type": tracking.get("error_type"),
+                    "result_rows": result_rows,
+                    "result_preview": result_preview,
+                    "retry_count": len(retries_data),
+                    "retries": retries_data,
+                    "total_latency_ms": tracking.get("total_latency_ms", 0),
+                    "tables_used": tables_used,
+                    "fields": res.get("fields", []),
+                    "available_table_count": count_available_tables(full_schema),
+                    "relevant_schema": extract_relevant_schema(full_schema, tables_used),
+                    "filtered_table_names": filtered_tables,
+                    "stage2_enabled": retrieval_meta.get("stage2_enabled"),
+                    "stage1_top_n": retrieval_meta.get("stage1_top_n"),
+                    "stage2_top_m": retrieval_meta.get("stage2_top_m"),
+                    "stage1_tables": retrieval_meta.get("stage1_tables"),
+                    "stage2_tables": retrieval_meta.get("stage2_tables"),
+                    "stage2_model": retrieval_meta.get("stage2_model"),
+                    "run_tag": run_tag,
+                    "limit_injected": tracking.get("limit_injected"),
+                })
+            else:
+                # 兼容路径：旧 Tracker
+                tracker = get_query_tracker()
+                tracker.record_query(
+                    nl_query=query,
+                    tool="get_data",
+                    database=global_db_config.get("database", ""),
+                    dialect=dialect,
+                    format_type=format_type,
+                    schema_filtered=schema_filter_enabled,
+                    initial_sql=tracking.get("initial_sql", ""),
+                    exec_success=exec_success,
+                    exec_error=tracking.get("exec_error"),
+                    error_type=tracking.get("error_type"),
+                    result_rows=result_rows,
+                    result_preview=result_preview,
+                    retry_count=len(retries_data),
+                    retries=retries_data,
+                    total_latency_ms=tracking.get("total_latency_ms", 0),
+                    tables_used=tables_used,
+                    fields=res.get("fields", []),
+                    available_table_count=count_available_tables(full_schema),
+                    relevant_schema=extract_relevant_schema(full_schema, tables_used),
+                    filtered_table_names=filtered_tables,
+                    stage2_enabled=retrieval_meta.get("stage2_enabled"),
+                    stage1_top_n=retrieval_meta.get("stage1_top_n"),
+                    stage2_top_m=retrieval_meta.get("stage2_top_m"),
+                    stage1_tables=retrieval_meta.get("stage1_tables"),
+                    stage2_tables=retrieval_meta.get("stage2_tables"),
+                    stage2_model=retrieval_meta.get("stage2_model"),
+                    run_tag=run_tag,
+                    limit_injected=tracking.get("limit_injected"),
+                )
         except Exception as e:
             logger.error(f"追踪记录写入失败: {e}", exc_info=True)
 
@@ -1281,19 +1467,50 @@ async def get_data(
         run_tag: 实验运行标签（如 "n20m5_flash"），同一天跑不同 (N,M) 配比时区分用；
             传入后追踪文件会变成 query_tracker_{date}_{tag}.jsonl，且每条记录会带 run_tag 字段。
     """
+    # ── 准入控制 + 统一 deadline ──
+    rc = _runtime_controller
+    if rc is not None:
+        try:
+            await rc.admission.acquire()
+        except ServiceError as e:
+            return [TextContent(type="text", text=str(e))]
 
-    res = await call_xiyan(
-        query,
-        format_type=format,
-        stage2_enabled=stage2_enabled,
-        stage1_n=stage1_n,
-        stage2_m=stage2_m,
-        run_tag=run_tag,
-    )
-    return [TextContent(type="text", text=res)]
+        try:
+            deadline = Deadline.after(rc.config.get_data_deadline_seconds)
+            res = await deadline.wait_or_timeout(
+                call_xiyan(
+                    query,
+                    format_type=format,
+                    stage2_enabled=stage2_enabled,
+                    stage1_n=stage1_n,
+                    stage2_m=stage2_m,
+                    run_tag=run_tag,
+                    deadline=deadline,
+                )
+            )
+            return [TextContent(type="text", text=res)]
+        except DeadlineExceeded:
+            rc.record_deadline_exceeded()
+            return [TextContent(type="text", text=error_response(ErrorCode.DEADLINE_EXCEEDED))]
+        except Exception as e:
+            logger.error(f"get_data 未预期异常: {e}", exc_info=True)
+            return [TextContent(type="text", text=f"内部错误: {str(e)}")]
+        finally:
+            rc.admission.release()
+    else:
+        # 兼容路径：无 RuntimeController 时直接调用
+        res = await call_xiyan(
+            query,
+            format_type=format,
+            stage2_enabled=stage2_enabled,
+            stage1_n=stage1_n,
+            stage2_m=stage2_m,
+            run_tag=run_tag,
+        )
+        return [TextContent(type="text", text=res)]
 
 
-async def extract_hdfs_path_from_query(query: str) -> str:
+async def extract_hdfs_path_from_query(query: str, deadline: Optional[Deadline] = None) -> str:
     """从自然语言查询中提取 HDFS 存储路径
 
     支持中文自然语言描述，LLM 会自动识别以下意图：
@@ -1357,8 +1574,21 @@ async def extract_hdfs_path_from_query(query: str) -> str:
             "key": model_config["key"],
             "url": model_config["url"],
         }
-        async with _LLM_SEM:
-            response = await call_openai_sdk_async(**param)
+        # 使用 LLM Gateway（如果可用）
+        gateway = get_llm_gateway()
+        if deadline is None:
+            deadline = Deadline.after(30)  # 默认 30秒超时
+        if gateway is not None:
+            response = await gateway.chat_completion(
+                base_url=model_config["url"],
+                api_key=model_config["key"],
+                model=model_config["name"],
+                messages=messages,
+                deadline=deadline,
+            )
+        else:
+            async with _LLM_SEM:
+                response = await call_openai_sdk_async(**param)
         raw = response.choices[0].message.content
         logger.info(f"HDFS路径提取 LLM 原始响应: {repr(raw)}")
 
@@ -1444,6 +1674,35 @@ async def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: 
             text="错误: HDFS 功能未启用，请在配置文件中设置 hdfs.enabled = true"
         )]
 
+    # ── 准入控制 + 统一 deadline（HDFS 默认 300s）──
+    rc = _runtime_controller
+    if rc is not None:
+        try:
+            await rc.admission.acquire()
+        except ServiceError as e:
+            return [TextContent(type="text", text=str(e))]
+
+        try:
+            deadline = Deadline.after(rc.config.hdfs_deadline_seconds)
+            result = await deadline.wait_or_timeout(
+                _hdfs_upload_impl(query, session_id, hdfs_path, run_tag, deadline=deadline)
+            )
+            return result
+        except DeadlineExceeded:
+            rc.record_deadline_exceeded()
+            return [TextContent(type="text", text=error_response(ErrorCode.DEADLINE_EXCEEDED))]
+        except Exception as e:
+            logger.error(f"HDFS 未预期异常: {e}", exc_info=True)
+            return [TextContent(type="text", text=f"内部错误: {str(e)}")]
+        finally:
+            rc.admission.release()
+    else:
+        # 兼容路径：无 RuntimeController
+        return await _hdfs_upload_impl(query, session_id, hdfs_path, run_tag)
+
+
+async def _hdfs_upload_impl(query: str, session_id: str, hdfs_path: str, run_tag: Optional[str], deadline: Optional[Deadline] = None) -> list[TextContent]:
+    """HDFS 上传内部实现（已包含准入控制）"""
     if is_shutting_down():
         return [TextContent(type="text", text="服务器正在关闭，暂时不接受新请求")]
 
@@ -1452,7 +1711,7 @@ async def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: 
     # 如果没有显式提供 hdfs_path，尝试从自然语言查询中提取
     sql_query = query  # 默认用于 SQL 生成
     if not hdfs_path:
-        extracted_path = await extract_hdfs_path_from_query(query)
+        extracted_path = await extract_hdfs_path_from_query(query, deadline=deadline)
         if extracted_path:
             hdfs_path = extracted_path
             logger.info(f"从自然语言查询中提取到 HDFS 路径: {hdfs_path}")
@@ -1489,13 +1748,12 @@ async def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: 
                 logger.warning(f"Schema 过滤失败，使用完整 Schema: {e}")
 
         # 执行 SQL 查询（使用剥离路径后的查询文本）
-        res = await sql_gen_and_execute(env, sql_query)
+        res = await sql_gen_and_execute(env, sql_query, deadline=deadline)
 
         # --- 记录追踪数据 ---
         tracking = res.pop("_tracking", {})
         if tracking:
             try:
-                tracker = get_query_tracker()
                 retries_data = tracking.get("retries", [])
                 if retries_data:
                     exec_success = retries_data[-1].get("success", False)
@@ -1505,38 +1763,70 @@ async def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: 
                 result_rows = len(rows) if isinstance(rows, list) else 0
                 full_schema = tracking.get("schema_used", "")
                 tables_used = tracking.get("tables_used", [])
-                retries_data = tracking.get("retries", [])
-                tracker.record_query(
-                    nl_query=query,
-                    tool="query_and_upload_to_hdfs",
-                    database=global_db_config.get("database", ""),
-                    dialect=dialect,
-                    hdfs_path=hdfs_path,
-                    schema_filtered=schema_filter_enabled,
-                    initial_sql=tracking.get("initial_sql", ""),
-                    exec_success=exec_success,
-                    exec_error=tracking.get("exec_error"),
-                    error_type=tracking.get("error_type"),
-                    result_rows=result_rows,
-                    result_preview=None,
-                    retry_count=len(retries_data),
-                    retries=retries_data,
-                    total_latency_ms=tracking.get("total_latency_ms", 0),
-                    tables_used=tables_used,
-                    fields=res.get("fields", []),
-                    available_table_count=count_available_tables(full_schema),
-                    relevant_schema=extract_relevant_schema(full_schema, tables_used),
-                    filtered_table_names=filtered_table_names,
-                    # ── 二级筛选追踪 ──
-                    stage2_enabled=retrieval_meta.get("stage2_enabled"),
-                    stage1_top_n=retrieval_meta.get("stage1_top_n"),
-                    stage2_top_m=retrieval_meta.get("stage2_top_m"),
-                    stage1_tables=retrieval_meta.get("stage1_tables"),
-                    stage2_tables=retrieval_meta.get("stage2_tables"),
-                    stage2_model=retrieval_meta.get("stage2_model"),
-                    run_tag=run_tag,
-                    limit_injected=tracking.get("limit_injected"),
-                )
+                
+                # 使用 Async Tracker（如果可用）
+                async_tracker = get_async_tracker()
+                if async_tracker is not None:
+                    async_tracker.record({
+                        "timestamp": datetime.now().isoformat(),
+                        "nl_query": query,
+                        "tool": "query_and_upload_to_hdfs",
+                        "database": global_db_config.get("database", ""),
+                        "dialect": dialect,
+                        "hdfs_path": hdfs_path,
+                        "schema_filtered": schema_filter_enabled,
+                        "initial_sql": tracking.get("initial_sql", ""),
+                        "exec_success": exec_success,
+                        "exec_error": tracking.get("exec_error"),
+                        "error_type": tracking.get("error_type"),
+                        "result_rows": result_rows,
+                        "retry_count": len(retries_data),
+                        "retries": retries_data,
+                        "total_latency_ms": tracking.get("total_latency_ms", 0),
+                        "tables_used": tables_used,
+                        "fields": res.get("fields", []),
+                        "available_table_count": count_available_tables(full_schema),
+                        "relevant_schema": extract_relevant_schema(full_schema, tables_used),
+                        "filtered_table_names": filtered_table_names,
+                        "stage2_enabled": retrieval_meta.get("stage2_enabled"),
+                        "stage1_top_n": retrieval_meta.get("stage1_top_n"),
+                        "stage2_top_m": retrieval_meta.get("stage2_top_m"),
+                        "run_tag": run_tag,
+                        "limit_injected": tracking.get("limit_injected"),
+                    })
+                else:
+                    # 兼容路径：旧 Tracker
+                    tracker = get_query_tracker()
+                    tracker.record_query(
+                        nl_query=query,
+                        tool="query_and_upload_to_hdfs",
+                        database=global_db_config.get("database", ""),
+                        dialect=dialect,
+                        hdfs_path=hdfs_path,
+                        schema_filtered=schema_filter_enabled,
+                        initial_sql=tracking.get("initial_sql", ""),
+                        exec_success=exec_success,
+                        exec_error=tracking.get("exec_error"),
+                        error_type=tracking.get("error_type"),
+                        result_rows=result_rows,
+                        result_preview=None,
+                        retry_count=len(retries_data),
+                        retries=retries_data,
+                        total_latency_ms=tracking.get("total_latency_ms", 0),
+                        tables_used=tables_used,
+                        fields=res.get("fields", []),
+                        available_table_count=count_available_tables(full_schema),
+                        relevant_schema=extract_relevant_schema(full_schema, tables_used),
+                        filtered_table_names=filtered_table_names,
+                        stage2_enabled=retrieval_meta.get("stage2_enabled"),
+                        stage1_top_n=retrieval_meta.get("stage1_top_n"),
+                        stage2_top_m=retrieval_meta.get("stage2_top_m"),
+                        stage1_tables=retrieval_meta.get("stage1_tables"),
+                        stage2_tables=retrieval_meta.get("stage2_tables"),
+                        stage2_model=retrieval_meta.get("stage2_model"),
+                        run_tag=run_tag,
+                        limit_injected=tracking.get("limit_injected"),
+                    )
             except Exception as e:
                 logger.error(f"追踪记录写入失败(hdfs): {e}", exc_info=True)
 
@@ -1546,13 +1836,23 @@ async def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: 
             return [TextContent(type="text", text=f"SQL 执行失败: {res['error']}")]
 
         # 转换为 Parquet 并上传到 HDFS
-        uploader = get_hdfs_uploader()
-        hdfs_result_path = convert_to_parquet_and_upload(
-            res,
-            uploader,
-            session_id=session_id if session_id else None,
-            hdfs_path=hdfs_path if hdfs_path else None
-        )
+        if _async_hdfs_uploader is not None and deadline is not None:
+            # 使用异步 HDFS 上传器
+            hdfs_result_path = await _async_hdfs_uploader.convert_and_upload_async(
+                res,
+                deadline=deadline,
+                request_id=session_id or None,
+                hdfs_path=hdfs_path or None,
+            )
+        else:
+            # 兼容路径：旧同步上传器
+            uploader = get_hdfs_uploader()
+            hdfs_result_path = convert_to_parquet_and_upload(
+                res,
+                uploader,
+                session_id=session_id if session_id else None,
+                hdfs_path=hdfs_path if hdfs_path else None
+            )
 
         logger.info(f"数据已上传到 HDFS: {hdfs_result_path}")
 
@@ -1569,6 +1869,63 @@ async def query_and_upload_to_hdfs(query: str, session_id: str = "", hdfs_path: 
         return [TextContent(type="text", text=f"HDFS 上传失败: {str(e)}")]
 
 
+def _create_health_app(mcp_app):
+    """创建包含健康检查端点的 Starlette 应用
+    
+    提供：
+    - /health/live: 存活检查
+    - /health/ready: 就绪检查（考虑初始化和 draining 状态）
+    - /metrics: 运行时指标（JSON 格式）
+    """
+    from starlette.applications import Starlette
+    from starlette.routing import Mount, Route
+    from starlette.responses import JSONResponse, PlainTextResponse
+    
+    async def health_live(request):
+        return PlainTextResponse("ok")
+    
+    async def health_ready(request):
+        rc = _runtime_controller
+        if rc is None:
+            return PlainTextResponse("initializing", status_code=503)
+        if rc.is_ready:
+            return PlainTextResponse("ready")
+        return PlainTextResponse("not ready", status_code=503)
+    
+    async def metrics_endpoint(request):
+        rc = _runtime_controller
+        if rc is None:
+            return JSONResponse({"error": "not initialized"}, status_code=503)
+        return JSONResponse(rc.get_metrics_snapshot())
+    
+    health_routes = [
+        Route("/health/live", health_live),
+        Route("/health/ready", health_ready),
+        Route("/metrics", metrics_endpoint),
+    ]
+    
+    # 将 MCP app 挂载到 /mcp 路径，健康检查在根路径
+    app = Starlette(
+        routes=[
+            *health_routes,
+            Mount("/", app=mcp_app),
+        ],
+    )
+    return app
+
+
+def _get_allowed_hosts() -> list:
+    """从环境变量或配置获取允许的 Host 列表
+    
+    环境变量 ALLOWED_HOSTS 用逗号分隔。
+    默认允许所有 Host（向后兼容）。
+    """
+    env_hosts = os.getenv("ALLOWED_HOSTS", "")
+    if env_hosts:
+        return [h.strip() for h in env_hosts.split(",") if h.strip()]
+    return ["*"]
+
+
 def main():
     import uvicorn
 
@@ -1583,7 +1940,6 @@ def main():
     parser.add_argument(
         "--host", default="localhost", help="host for the http transport"
     )
-
     parser.add_argument(
         "--port", type=int, default=8000, help="port for the http transport"
     )
@@ -1592,23 +1948,28 @@ def main():
     if args.transport == "streamable-http":
         mcp.settings.port = args.port
         mcp.settings.host = args.host
-        # 禁用 DNS rebinding protection，否则 MCP SDK 的 TransportSecurityMiddleware
-        # 会拒绝来自 Docker 网络的请求（如 host.docker.internal）
+        # 禁用 MCP SDK 内置的 DNS rebinding protection，
+        # 改用 TrustedHostMiddleware 做 Host 白名单控制
         mcp.settings.transport_security = None
-        logger.info(f"MCP server running at {args.host}/{args.port}")
+        logger.info(f"MCP server running at {args.host}:{args.port}")
 
-        # 获取原始 Starlette app 并添加 TrustedHostMiddleware
-        # 解决 Docker 网络环境下的 "Invalid Host header" 问题
-        app = mcp.streamable_http_app()
+        # 获取原始 Starlette app
+        mcp_app = mcp.streamable_http_app()
 
-        # 添加 TrustedHostMiddleware 允许所有 Host 头
-        app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
+        # 创建包含健康检查的应用
+        app = _create_health_app(mcp_app)
+
+        # 添加 TrustedHostMiddleware（Host 白名单）
+        allowed_hosts = _get_allowed_hosts()
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+        logger.info(f"Host 白名单: {allowed_hosts}")
 
         config = uvicorn.Config(
             app,
             host=args.host,
             port=args.port,
             log_level="info",
+            timeout_graceful_shutdown=40,  # 与容器 stop_grace_period 配合
         )
         server = uvicorn.Server(config)
         import anyio
@@ -1617,7 +1978,7 @@ def main():
     elif args.transport == "sse":
         mcp.settings.port = args.port
         mcp.settings.host = args.host
-        logger.info(f"MCP server running at {args.host}/{args.port}")
+        logger.info(f"MCP server running at {args.host}:{args.port}")
         # SSE 使用 mcp.run() 的内置支持
         mcp.run(transport="sse")
     else:
