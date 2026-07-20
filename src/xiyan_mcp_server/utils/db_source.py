@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 import os
 import threading
@@ -221,7 +222,7 @@ class HITLSQLDatabase(SQLDatabase):
     
     def fetch(self, sql_query: str, max_rows: int = 10000):
         """
-        执行 SQL 查询，返回结果
+        执行 SQL 查询，返回结果（同步接口，保留兼容）
 
         Args:
             sql_query: SQL 查询语句
@@ -251,6 +252,42 @@ class HITLSQLDatabase(SQLDatabase):
             return False, str(e)
         except Exception as e:
             logger.error(f"SQL fetch error: {e}")
+            return False, str(e)
+
+    async def fetch_async(self, sql_query: str, *, deadline, max_rows: int = 10000):
+        """异步执行 SQL 查询（通过 SqlExecutionManager）
+
+        Args:
+            sql_query: SQL 查询语句
+            deadline: Deadline 实例（绝对截止时间）
+            max_rows: 最大返回行数
+
+        Returns:
+            (status, records): 与 fetch() 格式一致
+        """
+        from .sql_executor import get_sql_manager
+
+        sql_query = preprocess_sql_query(sql_query)
+        validate_sql_query(sql_query)
+        logger.debug(f"Executing SQL fetch_async: {sql_query}")
+
+        manager = get_sql_manager()
+        if manager is None:
+            # 降级到同步路径（兼容未初始化 manager 的场景）
+            return self.fetch(sql_query, max_rows)
+
+        try:
+            result = await manager.execute_async(
+                self._engine, sql_query, deadline=deadline, max_rows=max_rows
+            )
+            logger.info(f"SQL fetch_async successful, rows: {result.row_count}")
+            return True, (result.records, result.columns)
+        except Exception as e:
+            from ..runtime import DeadlineExceeded
+            if isinstance(e, DeadlineExceeded):
+                logger.warning(f"SQL fetch_async deadline exceeded: {sql_query[:200]}...")
+            else:
+                logger.error(f"SQL fetch_async error: {e}")
             return False, str(e)
 
     def fetch_with_column_name(self, sql_query: str):

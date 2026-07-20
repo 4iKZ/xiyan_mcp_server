@@ -7,7 +7,6 @@ GreptimeDB 专用数据源类
 import logging
 import os
 import threading
-from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
@@ -37,10 +36,9 @@ class GreptimeDBSource:
         # 使用 system_prefix 作为 db_id，且不设置 schema 前缀，因为表名已经包含了完整的 schema 名
         self._mschema = MSchema(db_id=self._system_prefix or self._db_name, schema=None)
         self._usable_tables = []
-        # 表列加载锁：使用 OrderedDict 实现 LRU 缓存，最多保留 1000 个表的锁
-        self._loading_locks = OrderedDict()  # {full_table_name: Lock}
+        # 表列加载锁：进程生命周期内保留每表锁，不淘汰仍可能被使用的锁
+        self._loading_locks: dict[str, threading.Lock] = {}  # {full_table_name: Lock}
         self._loading_locks_lock = threading.Lock()
-        self._loading_locks_max_size = 1000  # 可配置
 
         # --- 尝试从缓存文件加载（跳过 init_mschema 的数据库查询） ---
         cache_path = self._get_schema_cache_path()
@@ -119,34 +117,23 @@ class GreptimeDBSource:
         logger.info(f"init_mschema: 完成，已添加 {len(tables_with_schema)} 个表（不含列信息）")
 
     def _get_table_loading_lock(self, full_table_name: str) -> threading.Lock:
-        """获取表的加载锁，使用 LRU 缓存限制大小"""
-        # 快速路径：已存在则更新 LRU
+        """获取表的加载锁（进程生命周期内保留，不淘汰）
+
+        修复 LRU 竞态：旧实现会淘汰仍可能被使用的锁，
+        导致两个线程同时加载同一张表。现在每表锁永久保留。
+        """
+        # 快速路径：已存在则直接返回
         if full_table_name in self._loading_locks:
-            with self._loading_locks_lock:
-                if full_table_name in self._loading_locks:
-                    # 移到末尾（标记为最近使用）
-                    lock = self._loading_locks.pop(full_table_name)
-                    self._loading_locks[full_table_name] = lock
-                    return lock
+            return self._loading_locks[full_table_name]
 
         # 慢速路径：创建新锁
         with self._loading_locks_lock:
             # 双重检查
             if full_table_name in self._loading_locks:
-                lock = self._loading_locks.pop(full_table_name)
-                self._loading_locks[full_table_name] = lock
-                return lock
+                return self._loading_locks[full_table_name]
 
-            # 创建新锁
             lock = threading.Lock()
             self._loading_locks[full_table_name] = lock
-
-            # LRU 淘汰：如果超过最大大小，移除最旧的锁
-            if len(self._loading_locks) > self._loading_locks_max_size:
-                oldest_table = next(iter(self._loading_locks))
-                del self._loading_locks[oldest_table]
-                logger.debug(f"LRU 淘汰表锁: {oldest_table}")
-
             return lock
 
     def _load_table_columns(self, schema_name: str, table_name: str):
@@ -321,7 +308,7 @@ class GreptimeDBSource:
             return [row[0] for row in result if row[0] is not None]
     
     def fetch(self, sql_query: str) -> Tuple[bool, Any]:
-        """执行 SQL 查询"""
+        """执行 SQL 查询（同步接口，保留兼容）"""
         sql_query = preprocess_sql_query(sql_query)
         validate_sql_query(sql_query)
 
@@ -333,6 +320,40 @@ class GreptimeDBSource:
             logger.warning(f"SQL fetch timeout: {sql_query[:200]}...")
             return False, str(e)
         except Exception as e:
+            return False, str(e)
+
+    async def fetch_async(self, sql_query: str, *, deadline, max_rows: int = 10000):
+        """异步执行 SQL 查询（通过 SqlExecutionManager）
+
+        Args:
+            sql_query: SQL 查询语句
+            deadline: Deadline 实例（绝对截止时间）
+            max_rows: 最大返回行数
+
+        Returns:
+            (status, records): 与 fetch() 格式一致
+        """
+        from .sql_executor import get_sql_manager
+
+        sql_query = preprocess_sql_query(sql_query)
+        validate_sql_query(sql_query)
+
+        manager = get_sql_manager()
+        if manager is None:
+            return self.fetch(sql_query)
+
+        try:
+            result = await manager.execute_async(
+                self._engine, sql_query, deadline=deadline, max_rows=max_rows
+            )
+            records = [tuple(row) for row in result.records]
+            return True, (records, result.columns)
+        except Exception as e:
+            from ..runtime import DeadlineExceeded
+            if isinstance(e, DeadlineExceeded):
+                logger.warning(f"SQL fetch_async deadline exceeded: {sql_query[:200]}...")
+            else:
+                logger.error(f"SQL fetch_async error: {e}")
             return False, str(e)
     
     def fetch_with_column_name(self, sql_query: str) -> Tuple[Any, List]:

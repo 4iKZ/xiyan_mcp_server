@@ -7,11 +7,14 @@ from sqlalchemy.pool import QueuePool
 from .db_config import DBConfig
 
 # 连接池配置（适用于所有数据库类型）
+# 默认值与 RuntimeConfig.database 保持一致：
+#   pool_size=6, max_overflow=0, pool_timeout=5
+# 校验规则：pool_size + max_overflow >= sql_concurrency(4) + metadata_reserved(2)
 POOL_CONFIG = {
     "poolclass": QueuePool,
-    "pool_size": 10,          # 基础连接数（SQLAlchemy 默认 5）
-    "max_overflow": 20,       # 额外连接数（SQLAlchemy 默认 10）
-    "pool_timeout": 30,       # 获取连接超时（秒）
+    "pool_size": 6,           # 基础连接数
+    "max_overflow": 0,        # 额外连接数（0 = 严格上限）
+    "pool_timeout": 5,        # 获取连接超时（秒）
     "pool_recycle": 3600,     # 连接回收时间（秒，避免被数据库关闭）
     "pool_pre_ping": True,    # 连接前先 ping（检测断开的连接）
 }
