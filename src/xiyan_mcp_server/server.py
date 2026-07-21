@@ -1869,16 +1869,17 @@ async def _hdfs_upload_impl(query: str, session_id: str, hdfs_path: str, run_tag
         return [TextContent(type="text", text=f"HDFS 上传失败: {str(e)}")]
 
 
-def _create_health_app(mcp_app):
-    """创建包含健康检查端点的 Starlette 应用
+def _add_health_routes(mcp_app):
+    """在 MCP app 上直接添加健康检查端点
     
     提供：
     - /health/live: 存活检查
     - /health/ready: 就绪检查（考虑初始化和 draining 状态）
     - /metrics: 运行时指标（JSON 格式）
+    
+    注意：不能用 Mount 包裹 MCP app，否则 MCP SDK 的 lifespan 不会被触发。
     """
-    from starlette.applications import Starlette
-    from starlette.routing import Mount, Route
+    from starlette.routing import Route
     from starlette.responses import JSONResponse, PlainTextResponse
     
     async def health_live(request):
@@ -1898,20 +1899,15 @@ def _create_health_app(mcp_app):
             return JSONResponse({"error": "not initialized"}, status_code=503)
         return JSONResponse(rc.get_metrics_snapshot())
     
+    # 直接在 MCP app 的 router 中插入健康检查路由（优先匹配）
     health_routes = [
         Route("/health/live", health_live),
         Route("/health/ready", health_ready),
         Route("/metrics", metrics_endpoint),
     ]
-    
-    # 将 MCP app 挂载到 /mcp 路径，健康检查在根路径
-    app = Starlette(
-        routes=[
-            *health_routes,
-            Mount("/", app=mcp_app),
-        ],
-    )
-    return app
+    # 插入到路由列表开头，确保优先匹配
+    mcp_app.router.routes = health_routes + mcp_app.router.routes
+    return mcp_app
 
 
 def _get_allowed_hosts() -> list:
@@ -1957,7 +1953,7 @@ def main():
         mcp_app = mcp.streamable_http_app()
 
         # 创建包含健康检查的应用
-        app = _create_health_app(mcp_app)
+        app = _add_health_routes(mcp_app)
 
         # 添加 TrustedHostMiddleware（Host 白名单）
         allowed_hosts = _get_allowed_hosts()
