@@ -35,6 +35,7 @@ SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://localhost:8000/mcp")
 
 
 async def run_one(
+    client,
     query_id: int,
     nl_query: str,
     timeout: int,
@@ -60,11 +61,10 @@ async def run_one(
     for attempt in range(max_retries + 1):
         t0 = time.time()
         try:
-            async with Client(SERVER_URL, timeout=timeout + 60) as client:
-                result = await asyncio.wait_for(
-                    client.call_tool("get_data", tool_args, timeout=timeout),
-                    timeout=timeout + 60
-                )
+            result = await asyncio.wait_for(
+                client.call_tool("get_data", tool_args, timeout=timeout),
+                timeout=timeout + 60
+            )
             elapsed = time.time() - t0
             text = result.content[0].text if result.content else ""
             success = not (text.startswith("错误") or text.startswith("Error"))
@@ -141,7 +141,7 @@ async def main():
 
     print(f"加载 {len(queries)} 条查询 (从 #{args.start} 开始)")
     print(f"服务器: {SERVER_URL}")
-    print(f"模式: 每查询独立连接 | 间隔 {args.delay}s | 超时 {args.timeout}s")
+    print(f"模式: 复用单连接 | 间隔 {args.delay}s | 超时 {args.timeout}s")
     print(f"stage2_enabled={args.stage2}  stage1_n={args.stage1_n}  stage2_m={args.stage2_m}  (None=沿用 yml)")
     print(f"run_tag={args.tag!r}")
     print(f"{'='*60}")
@@ -153,73 +153,77 @@ async def main():
     COOLDOWN_THRESHOLD = 3
     COOLDOWN_SECONDS = 120
 
-    for i, q in enumerate(queries):
-        qid = q["id"]
-        nl = q["query"]
-        lv = q.get("level", "?")
+    # 复用单个 MCP 连接（避免每次查询发 DELETE 导致服务端 session manager 关闭）
+    async with Client(SERVER_URL, timeout=args.timeout + 60) as client:
+        for i, q in enumerate(queries):
+            qid = q["id"]
+            nl = q["query"]
+            lv = q.get("level", "?")
 
-        eta = ""
-        completed = stats["ok"] + stats["fail"]
-        if completed > 0:
-            avg = (time.time() - t_start) / completed
-            remaining = avg * (len(queries) - completed)
-            eta = f" | 剩余约 {remaining/60:.0f}min"
+            eta = ""
+            completed = stats["ok"] + stats["fail"]
+            if completed > 0:
+                avg = (time.time() - t_start) / completed
+                remaining = avg * (len(queries) - completed)
+                eta = f" | 剩余约 {remaining/60:.0f}min"
 
-        print(f"[{i+1}/{len(queries)}] #{qid} Lv{lv} | {nl[:55]}...", end="", flush=True)
+            print(f"[{i+1}/{len(queries)}] #{qid} Lv{lv} | {nl[:55]}...", end="", flush=True)
 
-        result = await run_one(
-            qid, nl, args.timeout,
-            stage2_enabled=args.stage2,
-            stage1_n=args.stage1_n,
-            stage2_m=args.stage2_m,
-            run_tag=args.tag,
-        )
+            result = await run_one(
+                client,
+                qid, nl, args.timeout,
+                stage2_enabled=args.stage2,
+                stage1_n=args.stage1_n,
+                stage2_m=args.stage2_m,
+                run_tag=args.tag,
+            )
 
-        if result["success"]:
-            stats["ok"] += 1
-            consecutive_timeout = 0
-            print(f" \033[32m✓\033[0m ({result['elapsed_s']}s){eta}")
-        else:
-            preview = result.get("text_preview", "")
-            if "Client failed to connect" in preview or "connection to server" in preview:
-                print(f" \033[33m⚠\033[0m 连接错误，30s 后重试...  [{time.strftime('%H:%M:%S')}]",
-                      flush=True)
-                await asyncio.sleep(30)
-                result = await run_one(
-                    qid, nl, args.timeout,
-                    stage2_enabled=args.stage2,
-                    stage1_n=args.stage1_n,
-                    stage2_m=args.stage2_m,
-                    run_tag=args.tag,
-                )
-                if result["success"]:
-                    stats["ok"] += 1
-                    consecutive_timeout = 0
-                    print(f"  重试 \033[32m✓\033[0m ({result['elapsed_s']}s){eta}")
-                    if i < len(queries) - 1:
-                        await asyncio.sleep(args.delay)
-                    continue
-                preview = result.get("text_preview", "")
-            stats["fail"] += 1
-            print(f" \033[31m✗\033[0m {preview[:50]} ({result['elapsed_s']}s){eta}")
-
-            if "Timed out" in result.get("text_preview", ""):
-                consecutive_timeout += 1
+            if result["success"]:
+                stats["ok"] += 1
+                consecutive_timeout = 0
+                print(f" \033[32m✓\033[0m ({result['elapsed_s']}s){eta}")
             else:
+                preview = result.get("text_preview", "")
+                if "Client failed to connect" in preview or "connection to server" in preview:
+                    print(f" \033[33m⚠\033[0m 连接错误，30s 后重试...  [{time.strftime('%H:%M:%S')}]",
+                          flush=True)
+                    await asyncio.sleep(30)
+                    result = await run_one(
+                        client,
+                        qid, nl, args.timeout,
+                        stage2_enabled=args.stage2,
+                        stage1_n=args.stage1_n,
+                        stage2_m=args.stage2_m,
+                        run_tag=args.tag,
+                    )
+                    if result["success"]:
+                        stats["ok"] += 1
+                        consecutive_timeout = 0
+                        print(f"  重试 \033[32m✓\033[0m ({result['elapsed_s']}s){eta}")
+                        if i < len(queries) - 1:
+                            await asyncio.sleep(args.delay)
+                        continue
+                    preview = result.get("text_preview", "")
+                stats["fail"] += 1
+                print(f" \033[31m✗\033[0m {preview[:50]} ({result['elapsed_s']}s){eta}")
+
+                if "Timed out" in result.get("text_preview", ""):
+                    consecutive_timeout += 1
+                else:
+                    consecutive_timeout = 0
+
+            if consecutive_timeout >= COOLDOWN_THRESHOLD:
+                print(
+                    f"\n⚠ 连续 {consecutive_timeout} 次超时，"
+                    f"冷却 {COOLDOWN_SECONDS}s（{COOLDOWN_SECONDS/60:.0f}min）"
+                    f"  [{time.strftime('%H:%M:%S')}]\n",
+                    flush=True,
+                )
+                await asyncio.sleep(COOLDOWN_SECONDS)
                 consecutive_timeout = 0
 
-        if consecutive_timeout >= COOLDOWN_THRESHOLD:
-            print(
-                f"\n⚠ 连续 {consecutive_timeout} 次超时，"
-                f"冷却 {COOLDOWN_SECONDS}s（{COOLDOWN_SECONDS/60:.0f}min）"
-                f"  [{time.strftime('%H:%M:%S')}]\n",
-                flush=True,
-            )
-            await asyncio.sleep(COOLDOWN_SECONDS)
-            consecutive_timeout = 0
-
-        if i < len(queries) - 1:
-            await asyncio.sleep(args.delay)
+            if i < len(queries) - 1:
+                await asyncio.sleep(args.delay)
 
     total = stats["ok"] + stats["fail"]
     elapsed_min = (time.time() - t_start) / 60

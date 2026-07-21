@@ -1944,32 +1944,36 @@ def main():
     if args.transport == "streamable-http":
         mcp.settings.port = args.port
         mcp.settings.host = args.host
-        # 禁用 MCP SDK 内置的 DNS rebinding protection，
-        # 改用 TrustedHostMiddleware 做 Host 白名单控制
+        # 禁用 MCP SDK 内置的 DNS rebinding protection
         mcp.settings.transport_security = None
         logger.info(f"MCP server running at {args.host}:{args.port}")
 
         # 获取原始 Starlette app
-        mcp_app = mcp.streamable_http_app()
+        app = mcp.streamable_http_app()
 
-        # 创建包含健康检查的应用
-        app = _add_health_routes(mcp_app)
+        # 添加健康检查路由（直接插入 router，不影响 SDK lifespan）
+        _add_health_routes(app)
 
         # 添加 TrustedHostMiddleware（Host 白名单）
         allowed_hosts = _get_allowed_hosts()
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
         logger.info(f"Host 白名单: {allowed_hosts}")
 
-        config = uvicorn.Config(
-            app,
-            host=args.host,
-            port=args.port,
-            log_level="info",
-            timeout_graceful_shutdown=40,  # 与容器 stop_grace_period 配合
-        )
-        server = uvicorn.Server(config)
+        # 使用 SDK 官方启动方式（anyio.run + await server.serve）
         import anyio
-        anyio.run(server.serve)
+
+        async def _serve():
+            config = uvicorn.Config(
+                app,
+                host=args.host,
+                port=args.port,
+                log_level="info",
+                timeout_graceful_shutdown=40,
+            )
+            server = uvicorn.Server(config)
+            await server.serve()
+
+        anyio.run(_serve)
 
     elif args.transport == "sse":
         mcp.settings.port = args.port
