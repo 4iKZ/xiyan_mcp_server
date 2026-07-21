@@ -502,134 +502,90 @@ if schema_filter_enabled:
 
 logger.info("正在初始化 FastMCP...")
 
-# ── Lifespan 上下文管理器：初始化/关闭运行时组件 ──
+# ── Lifespan 上下文管理器：初始化运行时组件（幂等，仅首次 session 执行） ──
+# 注意：FastMCP 的 lifespan 是 per-session 的（每次客户端 initialize 触发一次），
+# 不是 per-server。因此初始化必须幂等，清理不能在 session 结束时执行。
+_lifespan_initialized = False
+
+
 @asynccontextmanager
 async def app_lifespan(app):
     """FastMCP lifespan：初始化 RuntimeController、SqlExecutionManager、AsyncTracker
     
-    关闭顺序：
-    1. 停止接收新请求（draining）
-    2. 最多等待 drain_seconds drain 活跃请求
-    3. 取消剩余协程，等待 cancellation_seconds
-    4. flush Tracker（最多 shutdown_flush_seconds）
-    5. 关闭 SQL executor 和数据库 engine
+    初始化仅在首次 session 时执行一次。
+    清理不在 session 结束时执行，而是由进程退出时的 signal handler 处理。
     """
-    global _runtime_controller
+    global _runtime_controller, _lifespan_initialized
     
-    # ── 初始化阶段 ──
-    try:
-        # 1. 解析运行时配置
-        runtime_config = RuntimeConfig.from_dict(global_config)
-        runtime_config.validate()
-        logger.info(f"运行时配置已加载: max_in_flight={runtime_config.max_in_flight}, "
-                    f"max_waiters={runtime_config.max_waiters}")
-        
-        # 2. 创建 RuntimeController
-        rc = RuntimeController(runtime_config)
-        _runtime_controller = rc
-        
-        # 3. 初始化 SqlExecutionManager
-        init_sql_manager(
-            sql_concurrency=runtime_config.concurrency.sql,
-            slot_wait_seconds=runtime_config.admission_wait_seconds,
-            query_timeout_seconds=runtime_config.database.query_timeout_seconds,
-        )
-        
-        # 4. 初始化 LLM Gateway
-        init_llm_gateway(default_group_concurrency=runtime_config.concurrency.llm)
-        
-        # 5. 初始化 AsyncQueryTracker
-        tracker = init_async_tracker(
-            queue_capacity=runtime_config.tracker.queue_capacity,
-            batch_size=runtime_config.tracker.batch_size,
-            flush_interval_seconds=runtime_config.tracker.flush_interval_seconds,
-            shutdown_flush_seconds=runtime_config.tracker.shutdown_flush_seconds,
-        )
-        await tracker.start()
-        
-        # 6. 启动事件循环延迟监控
-        await rc.start_lag_monitor()
-        
-        # 7. 初始化 Async HDFS 上传器（仅当 HDFS 启用时）
-        global _async_hdfs_uploader
-        if hdfs_enabled:
-            _async_hdfs_uploader = AsyncHDFSUploader(
-                hdfs_config,
-                timeouts=runtime_config.hdfs_timeouts,
-                max_concurrency=runtime_config.concurrency.hdfs,
+    if not _lifespan_initialized:
+        # ── 首次 session：执行完整初始化 ──
+        try:
+            # 1. 解析运行时配置
+            runtime_config = RuntimeConfig.from_dict(global_config)
+            runtime_config.validate()
+            logger.info(f"运行时配置已加载: max_in_flight={runtime_config.max_in_flight}, "
+                        f"max_waiters={runtime_config.max_waiters}")
+            
+            # 2. 创建 RuntimeController
+            rc = RuntimeController(runtime_config)
+            _runtime_controller = rc
+            
+            # 3. 初始化 SqlExecutionManager
+            init_sql_manager(
+                sql_concurrency=runtime_config.concurrency.sql,
+                slot_wait_seconds=runtime_config.admission_wait_seconds,
+                query_timeout_seconds=runtime_config.database.query_timeout_seconds,
             )
-            logger.info("异步 HDFS 上传器已初始化")
-        
-        # 8. 初始化 Async Embedding（仅当 Schema 过滤启用时）
-        if schema_filter_enabled:
-            embedding_svc = init_async_embedding(
-                embedding_config,
-                schema_metadata_concurrency=runtime_config.concurrency.schema_metadata,
+            
+            # 4. 初始化 LLM Gateway
+            init_llm_gateway(default_group_concurrency=runtime_config.concurrency.llm)
+            
+            # 5. 初始化 AsyncQueryTracker
+            tracker = init_async_tracker(
+                queue_capacity=runtime_config.tracker.queue_capacity,
+                batch_size=runtime_config.tracker.batch_size,
+                flush_interval_seconds=runtime_config.tracker.flush_interval_seconds,
+                shutdown_flush_seconds=runtime_config.tracker.shutdown_flush_seconds,
             )
-            await embedding_svc.start()
-        
-        # 9. 标记 ready
-        rc.mark_ready()
-        logger.info("Lifespan 初始化完成，服务已就绪")
-        
-    except Exception as e:
-        logger.error(f"Lifespan 初始化失败: {e}", exc_info=True)
-        if _runtime_controller is not None:
-            _runtime_controller.mark_init_failed(str(e))
-        raise
+            await tracker.start()
+            
+            # 6. 启动事件循环延迟监控
+            await rc.start_lag_monitor()
+            
+            # 7. 初始化 Async HDFS 上传器（仅当 HDFS 启用时）
+            global _async_hdfs_uploader
+            if hdfs_enabled:
+                _async_hdfs_uploader = AsyncHDFSUploader(
+                    hdfs_config,
+                    timeouts=runtime_config.hdfs_timeouts,
+                    max_concurrency=runtime_config.concurrency.hdfs,
+                )
+                logger.info("异步 HDFS 上传器已初始化")
+            
+            # 8. 初始化 Async Embedding（仅当 Schema 过滤启用时）
+            if schema_filter_enabled:
+                embedding_svc = init_async_embedding(
+                    embedding_config,
+                    schema_metadata_concurrency=runtime_config.concurrency.schema_metadata,
+                )
+                await embedding_svc.start()
+            
+            # 9. 标记 ready
+            rc.mark_ready()
+            _lifespan_initialized = True
+            logger.info("Lifespan 初始化完成，服务已就绪")
+            
+        except Exception as e:
+            logger.error(f"Lifespan 初始化失败: {e}", exc_info=True)
+            if _runtime_controller is not None:
+                _runtime_controller.mark_init_failed(str(e))
+            raise
     
     yield
     
-    # ── 关闭阶段 ──
-    logger.info("Lifespan 关闭开始...")
-    rc = _runtime_controller
-    if rc is None:
-        return
-    
-    shutdown_cfg = rc.config.shutdown
-    
-    # 1. 停止接收新请求
-    rc.admission.start_draining()
-    logger.info("已停止接收新请求，开始 drain...")
-    
-    # 2. 等待活跃请求完成（最多 drain_seconds）
-    drain_deadline = time.monotonic() + shutdown_cfg.drain_seconds
-    while rc.admission.active_count > 0 and time.monotonic() < drain_deadline:
-        await asyncio.sleep(0.1)
-    if rc.admission.active_count > 0:
-        logger.warning(f"Drain 超时，仍有 {rc.admission.active_count} 个活跃请求")
-    
-    # 3. 取消剩余协程
-    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
-    for t in tasks:
-        t.cancel()
-    if tasks:
-        await asyncio.gather(*tasks, return_exceptions=True)
-        logger.info(f"已取消 {len(tasks)} 个残留协程")
-    
-    # 4. 终止 HDFS 子进程
-    if _async_hdfs_uploader is not None:
-        await _async_hdfs_uploader.terminate_all_processes()
-    
-    # 5. 关闭 RuntimeController（停止 lag monitor）
-    await rc.shutdown()
-    
-    # 6. flush Tracker
-    await shutdown_async_tracker()
-    
-    # 7. 关闭 LLM Gateway
-    await shutdown_llm_gateway()
-    
-    # 8. 关闭 Async Embedding
-    await shutdown_async_embedding()
-    
-    # 9. 关闭 SQL executor
-    await shutdown_sql_manager()
-    
-    # 10. 关闭数据库 engine
-    shutdown_sql_executor()
-    
-    logger.info("Lifespan 关闭完成")
+    # session 结束时不做任何清理。
+    # FastMCP lifespan 是 per-session 的，客户端断开不应影响服务器状态。
+    # 资源清理由进程退出时的 signal handler + sys.exit(0) 处理。
 
 
 mcp = FastMCP("xiyan", lifespan=app_lifespan, **mcp_config)
