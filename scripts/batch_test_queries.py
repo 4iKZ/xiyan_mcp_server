@@ -30,6 +30,7 @@ import argparse
 from pathlib import Path
 
 import httpx
+from mcp.shared.exceptions import McpError
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from fastmcp.client import Client
@@ -278,7 +279,7 @@ async def main():
                         if i < len(queries) - 1:
                             await asyncio.sleep(args.delay)
 
-                    except (httpx.HTTPError, RuntimeError, ConnectionError, asyncio.CancelledError) as e:
+                    except (httpx.HTTPError, McpError, RuntimeError, ConnectionError, asyncio.CancelledError) as e:
                         # session dead → 跳出内层 for，触发外层 reconnect
                         if is_session_dead_error(e):
                             start_idx = i  # 重跑当前 query（不是下一条）
@@ -291,7 +292,7 @@ async def main():
                 # for 循环正常结束 → 所有 query 完成
                 break
 
-        except (httpx.HTTPError, RuntimeError, ConnectionError, asyncio.CancelledError) as e:
+        except (httpx.HTTPError, McpError, RuntimeError, ConnectionError, asyncio.CancelledError) as e:
             if not is_session_dead_error(e):
                 # 非 session dead 的异常不应该到这里（内层已处理）
                 raise
