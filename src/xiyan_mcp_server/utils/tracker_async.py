@@ -11,6 +11,7 @@
 """
 
 import asyncio
+import re
 import datetime
 import json
 import logging
@@ -28,6 +29,12 @@ class AsyncQueryTracker:
     使用 asyncio.Queue 缓冲记录，单后台协程批量写入 JSONL。
     队列满时丢弃最新记录（不阻塞主流程）。
     """
+
+    @staticmethod
+    def _sanitize_tag(tag: str) -> str:
+        """把 tag 清成文件名安全字符；非字母数字/._-/ 一律替换成 _"""
+        s = re.sub(r"[^A-Za-z0-9._-]+", "_", tag).strip("_")
+        return s[:64]  # 限长，防止文件名暴长
 
     def __init__(
         self,
@@ -141,7 +148,21 @@ class AsyncQueryTracker:
     def _write_batch(self, batch: List[Dict]) -> None:
         """批量写入 JSONL 文件（同步，在线程中执行）"""
         date_str = datetime.date.today().isoformat()
-        file_name = f"query_tracker_{date_str}_{self._instance_id}.jsonl"
+
+        # 尝试从 batch 第一条记录读 run_tag（同一 batch 内 run_tag 应该一致）
+        run_tag = None
+        for record in batch:
+            run_tag = record.get("run_tag")
+            if run_tag:
+                break
+
+        if run_tag:
+            safe_tag = self._sanitize_tag(str(run_tag))
+            file_name = f"query_tracker_{date_str}_{safe_tag}.jsonl"
+        else:
+            # 无 run_tag 时回退到 instance_id (向后兼容)
+            file_name = f"query_tracker_{date_str}_{self._instance_id}.jsonl"
+
         file_path = self._output_dir / file_name
 
         lines = []
