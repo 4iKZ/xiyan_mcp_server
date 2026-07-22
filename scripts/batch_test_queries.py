@@ -22,16 +22,47 @@
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import time
 import argparse
 from pathlib import Path
 
+import httpx
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from fastmcp.client import Client
 
 SERVER_URL = os.environ.get("MCP_SERVER_URL", "http://localhost:8000/mcp")
+
+logger = logging.getLogger("batch_test_queries")
+
+# ── Reconnect supervisor helpers ────────────────────────────────────────────
+SESSION_DEAD_KEYWORDS = (
+    "server session was closed",
+    "session terminated",
+    "client failed to connect",
+    "client is not connected",
+    "all connection attempts failed",
+    "connection refused",
+    "connection reset",
+    "broken pipe",
+)
+
+
+def is_session_dead_error(exc: BaseException) -> bool:
+    """区分 session 死亡（需要 reconnect）和单 query 失败（重试即可）。
+
+    Returns:
+        True: session 死了，需要断开 client 重建（reconnect）
+        False: 单 query 失败，run_one 内部 retry 即可，不需 reconnect
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        # 4xx 是客户端 query 错误，5xx 才是 server/session 问题
+        return exc.response.status_code >= 500
+    msg = str(exc).lower()
+    return any(kw in msg for kw in SESSION_DEAD_KEYWORDS)
 
 
 async def run_one(
@@ -77,6 +108,9 @@ async def run_one(
         except asyncio.TimeoutError:
             return {"id": query_id, "success": False, "elapsed_s": timeout, "text_preview": "超时"}
         except Exception as e:
+            # session dead 不重试（重试也没用），直接抛给外层 reconnect
+            if is_session_dead_error(e):
+                raise
             err = str(e).lower()
             retryable = any(kw in err for kw in retryable_errors)
             if retryable and attempt < max_retries:
@@ -153,77 +187,130 @@ async def main():
     COOLDOWN_THRESHOLD = 3
     COOLDOWN_SECONDS = 120
 
-    # 复用单个 MCP 连接（避免每次查询发 DELETE 导致服务端 session manager 关闭）
-    async with Client(SERVER_URL, timeout=args.timeout + 60) as client:
-        for i, q in enumerate(queries):
-            qid = q["id"]
-            nl = q["query"]
-            lv = q.get("level", "?")
+    # ── Reconnect supervisor: 外层 while 跑 batch, 内层 try/except 检测 session dead ──
+    MAX_RECONNECTS = 10
 
-            eta = ""
-            completed = stats["ok"] + stats["fail"]
-            if completed > 0:
-                avg = (time.time() - t_start) / completed
-                remaining = avg * (len(queries) - completed)
-                eta = f" | 剩余约 {remaining/60:.0f}min"
+    stats = {"ok": 0, "fail": 0}
+    t_start = time.time()
 
-            print(f"[{i+1}/{len(queries)}] #{qid} Lv{lv} | {nl[:55]}...", end="", flush=True)
+    consecutive_timeout = 0
+    COOLDOWN_THRESHOLD = 3
+    COOLDOWN_SECONDS = 120
 
-            result = await run_one(
-                client,
-                qid, nl, args.timeout,
-                stage2_enabled=args.stage2,
-                stage1_n=args.stage1_n,
-                stage2_m=args.stage2_m,
-                run_tag=args.tag,
-            )
+    reconnect_count = 0
+    start_idx = 0
+    session_dead_exception = None  # 记录触发 reconnect 的异常
 
-            if result["success"]:
-                stats["ok"] += 1
-                consecutive_timeout = 0
-                print(f" \033[32m✓\033[0m ({result['elapsed_s']}s){eta}")
-            else:
-                preview = result.get("text_preview", "")
-                if "Client failed to connect" in preview or "connection to server" in preview:
-                    print(f" \033[33m⚠\033[0m 连接错误，30s 后重试...  [{time.strftime('%H:%M:%S')}]",
-                          flush=True)
-                    await asyncio.sleep(30)
-                    result = await run_one(
-                        client,
-                        qid, nl, args.timeout,
-                        stage2_enabled=args.stage2,
-                        stage1_n=args.stage1_n,
-                        stage2_m=args.stage2_m,
-                        run_tag=args.tag,
-                    )
-                    if result["success"]:
-                        stats["ok"] += 1
-                        consecutive_timeout = 0
-                        print(f"  重试 \033[32m✓\033[0m ({result['elapsed_s']}s){eta}")
+    while start_idx < len(queries):
+        consecutive_timeout = 0  # 新 session 重置冷却计数
+        session_dead_exception = None
+
+        try:
+            async with Client(SERVER_URL, timeout=args.timeout + 60) as client:
+                for i in range(start_idx, len(queries)):
+                    qid = queries[i]["id"]
+                    nl = queries[i]["query"]
+                    lv = queries[i].get("level", "?")
+
+                    eta = ""
+                    completed = stats["ok"] + stats["fail"]
+                    if completed > 0:
+                        avg = (time.time() - t_start) / completed
+                        remaining = avg * (len(queries) - completed)
+                        eta = f" | 剩余约 {remaining/60:.0f}min"
+
+                    print(f"[{i+1}/{len(queries)}] #{qid} Lv{lv} | {nl[:55]}...", end="", flush=True)
+
+                    try:
+                        result = await run_one(
+                            client,
+                            qid, nl, args.timeout,
+                            stage2_enabled=args.stage2,
+                            stage1_n=args.stage1_n,
+                            stage2_m=args.stage2_m,
+                            run_tag=args.tag,
+                        )
+
+                        if result["success"]:
+                            stats["ok"] += 1
+                            consecutive_timeout = 0
+                            print(f" \033[32m✓\033[0m ({result['elapsed_s']}s){eta}")
+                        else:
+                            preview = result.get("text_preview", "")
+                            if "Client failed to connect" in preview or "connection to server" in preview:
+                                print(f" \033[33m⚠\033[0m 连接错误，30s 后重试...  [{time.strftime('%H:%M:%S')}]",
+                                      flush=True)
+                                await asyncio.sleep(30)
+                                result = await run_one(
+                                    client,
+                                    qid, nl, args.timeout,
+                                    stage2_enabled=args.stage2,
+                                    stage1_n=args.stage1_n,
+                                    stage2_m=args.stage2_m,
+                                    run_tag=args.tag,
+                                )
+                                if result["success"]:
+                                    stats["ok"] += 1
+                                    consecutive_timeout = 0
+                                    print(f"  重试 \033[32m✓\033[0m ({result['elapsed_s']}s){eta}")
+                                    if i < len(queries) - 1:
+                                        await asyncio.sleep(args.delay)
+                                    continue
+                                preview = result.get("text_preview", "")
+                            stats["fail"] += 1
+                            print(f" \033[31m✗\033[0m {preview[:50]} ({result['elapsed_s']}s){eta}")
+
+                            if "Timed out" in result.get("text_preview", ""):
+                                consecutive_timeout += 1
+                            else:
+                                consecutive_timeout = 0
+
+                        if consecutive_timeout >= COOLDOWN_THRESHOLD:
+                            print(
+                                f"\n⚠ 连续 {consecutive_timeout} 次超时，"
+                                f"冷却 {COOLDOWN_SECONDS}s（{COOLDOWN_SECONDS/60:.0f}min）"
+                                f"  [{time.strftime('%H:%M:%S')}]\n",
+                                flush=True,
+                            )
+                            await asyncio.sleep(COOLDOWN_SECONDS)
+                            consecutive_timeout = 0
+
                         if i < len(queries) - 1:
                             await asyncio.sleep(args.delay)
-                        continue
-                    preview = result.get("text_preview", "")
-                stats["fail"] += 1
-                print(f" \033[31m✗\033[0m {preview[:50]} ({result['elapsed_s']}s){eta}")
 
-                if "Timed out" in result.get("text_preview", ""):
-                    consecutive_timeout += 1
-                else:
-                    consecutive_timeout = 0
+                    except (httpx.HTTPError, RuntimeError, ConnectionError, asyncio.CancelledError) as e:
+                        # session dead → 跳出内层 for，触发外层 reconnect
+                        if is_session_dead_error(e):
+                            start_idx = i  # 重跑当前 query（不是下一条）
+                            session_dead_exception = e
+                            raise  # 跳出 async with，到外层 except
+                        # 其他异常按单 query 失败处理
+                        stats["fail"] += 1
+                        print(f" \033[31m✗\033[0m {str(e)[:80]}{eta}")
 
-            if consecutive_timeout >= COOLDOWN_THRESHOLD:
-                print(
-                    f"\n⚠ 连续 {consecutive_timeout} 次超时，"
-                    f"冷却 {COOLDOWN_SECONDS}s（{COOLDOWN_SECONDS/60:.0f}min）"
-                    f"  [{time.strftime('%H:%M:%S')}]\n",
-                    flush=True,
-                )
-                await asyncio.sleep(COOLDOWN_SECONDS)
-                consecutive_timeout = 0
+                # for 循环正常结束 → 所有 query 完成
+                break
 
-            if i < len(queries) - 1:
-                await asyncio.sleep(args.delay)
+        except (httpx.HTTPError, RuntimeError, ConnectionError, asyncio.CancelledError) as e:
+            if not is_session_dead_error(e):
+                # 非 session dead 的异常不应该到这里（内层已处理）
+                raise
+            reconnect_count += 1
+            if reconnect_count > MAX_RECONNECTS:
+                print(f"\n\033[31m✗\033[0m 超过最大重连次数 ({MAX_RECONNECTS})，退出。"
+                      f"已完成 {stats['ok']} 条，失败 {stats['fail']} 条。")
+                logger.error(f"batch abort: exceeded MAX_RECONNECTS={MAX_RECONNECTS}")
+                break
+            sleep_s = min(60, 2 ** reconnect_count)
+            qid = queries[start_idx]["id"]
+            exc_name = type(session_dead_exception or e).__name__
+            exc_msg = str(session_dead_exception or e)
+            print(f"\n\033[33m⚠\033[0m Session 中断（第 {reconnect_count}/{MAX_RECONNECTS} 次），"
+                  f"{sleep_s}s 后从 #{qid} 续跑...  [{time.strftime('%H:%M:%S')}]")
+            logger.warning(f"batch reconnect #{reconnect_count}/{MAX_RECONNECTS} "
+                           f"after {sleep_s}s sleep: {exc_name}: {exc_msg[:200]}")
+            await asyncio.sleep(sleep_s)
+            # 外层 while 继续，start_idx 不变（保留断点）
 
     total = stats["ok"] + stats["fail"]
     elapsed_min = (time.time() - t_start) / 60
@@ -231,6 +318,7 @@ async def main():
     print(f"完成: {total} 条 | 成功 {stats['ok']} | 失败 {stats['fail']} | 耗时 {elapsed_min:.1f}min")
     if total > 0:
         print(f"成功率: {stats['ok']/total*100:.1f}%")
+    print(f"重连次数: {reconnect_count}")
     print(f"追踪数据: {Path('query_tracker_logs').absolute()}/")
 
     # 发送完成通知邮件（失败不影响主流程）
