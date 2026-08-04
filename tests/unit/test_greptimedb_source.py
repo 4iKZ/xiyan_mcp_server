@@ -3,7 +3,6 @@
 import json
 import pytest
 from unittest.mock import MagicMock, patch, PropertyMock
-from collections import OrderedDict
 from pathlib import Path
 
 from xiyan_mcp_server.utils.greptimedb_source import GreptimeDBSource
@@ -26,7 +25,7 @@ class TestGreptimeDBSourceInit:
             src = GreptimeDBSource(mock_engine, db_name="mydb", system_prefix="sys")
         assert src.db_name == "mydb"
         assert src._system_prefix == "sys"
-        assert isinstance(src._loading_locks, OrderedDict)
+        assert isinstance(src._loading_locks, dict)
 
     def test_db_name_from_url_when_empty(self, mock_engine):
         mock_engine.url.database = None
@@ -65,17 +64,16 @@ class TestGetTableLoadingLock:
         lock2 = src._get_table_loading_lock("t1")
         assert lock1 is lock2
 
-    def test_lru_eviction(self, mock_engine):
+    def test_locks_kept_forever(self, mock_engine):
         with patch.object(GreptimeDBSource, "init_mschema"):
             src = GreptimeDBSource(mock_engine)
-        src._loading_locks_max_size = 3
         src._get_table_loading_lock("t1")
         src._get_table_loading_lock("t2")
         src._get_table_loading_lock("t3")
-        assert len(src._loading_locks) == 3
         src._get_table_loading_lock("t4")
-        assert len(src._loading_locks) == 3
-        assert "t1" not in src._loading_locks
+        assert len(src._loading_locks) == 4
+        assert "t1" in src._loading_locks
+        assert "t4" in src._loading_locks
 
 
 class TestLoadTableColumns:
