@@ -111,9 +111,7 @@ class TestRetrieveAndBuild:
         retriever.build_sub_schema = MagicMock(return_value="sub schema")
         import asyncio
 
-        result = asyncio.get_event_loop().run_until_complete(
-            retriever.retrieve_and_build("query")
-        )
+        result = asyncio.run(retriever.retrieve_and_build("query"))
         names, schema, meta = result
         assert names == ["db1.t1", "db1.t2"]
         assert schema == "sub schema"
